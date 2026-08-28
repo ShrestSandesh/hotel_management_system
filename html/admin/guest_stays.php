@@ -90,25 +90,56 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
 
-    if ($action === 'update_status') {
-        $reservationId = (int) ($_POST['reservation_id'] ?? 0);
-        $selectedStatus = trim($_POST['status'] ?? '');
+    if ($action === 'update_status' || $action === 'save_statuses') {
+        $statuses = $_POST['statuses'] ?? [];
+        $allOk = true;
+        $updatedAny = false;
 
-        if ($selectedStatus === 'Checked out') {
-            $checkInStatus = 'CHECKED IN';
-            $checkOutStatus = 'CHECKED OUT';
-        } elseif ($selectedStatus === 'Check in') {
-            $checkInStatus = 'CHECKED IN';
-            $checkOutStatus = 'NOT CHECKED OUT';
-        } else {
-            $checkInStatus = 'NOT CHECKED IN';
-            $checkOutStatus = 'NOT CHECKED OUT';
+        if (is_array($statuses) && !empty($statuses)) {
+            foreach ($statuses as $resId => $selectedStatus) {
+                $reservationId = (int) $resId;
+                $selectedStatus = trim($selectedStatus);
+
+                if ($selectedStatus === 'Checked out') {
+                    $checkInStatus = 'CHECKED IN';
+                    $checkOutStatus = 'CHECKED OUT';
+                } elseif ($selectedStatus === 'Check in') {
+                    $checkInStatus = 'CHECKED IN';
+                    $checkOutStatus = 'NOT CHECKED OUT';
+                } else {
+                    $checkInStatus = 'NOT CHECKED IN';
+                    $checkOutStatus = 'NOT CHECKED OUT';
+                }
+
+                $checkInOk = updateReservationCheckInStatus($reservationId, $checkInStatus);
+                $checkOutOk = updateReservationCheckOutStatus($reservationId, $checkOutStatus);
+                if (!$checkInOk || !$checkOutOk) {
+                    $allOk = false;
+                }
+                $updatedAny = true;
+            }
+        } elseif (isset($_POST['reservation_id'])) {
+            $reservationId = (int) ($_POST['reservation_id'] ?? 0);
+            $selectedStatus = trim($_POST['status'] ?? '');
+
+            if ($selectedStatus === 'Checked out') {
+                $checkInStatus = 'CHECKED IN';
+                $checkOutStatus = 'CHECKED OUT';
+            } elseif ($selectedStatus === 'Check in') {
+                $checkInStatus = 'CHECKED IN';
+                $checkOutStatus = 'NOT CHECKED OUT';
+            } else {
+                $checkInStatus = 'NOT CHECKED IN';
+                $checkOutStatus = 'NOT CHECKED OUT';
+            }
+
+            $checkInOk = updateReservationCheckInStatus($reservationId, $checkInStatus);
+            $checkOutOk = updateReservationCheckOutStatus($reservationId, $checkOutStatus);
+            $allOk = $checkInOk && $checkOutOk;
+            $updatedAny = true;
         }
 
-        $checkInOk = updateReservationCheckInStatus($reservationId, $checkInStatus);
-        $checkOutOk = updateReservationCheckOutStatus($reservationId, $checkOutStatus);
-        $ok = $checkInOk && $checkOutOk;
-        header('Location: guest_stays.php?statusupdated=' . ($ok ? '1' : '0'));
+        header('Location: guest_stays.php?statusupdated=' . ($updatedAny && $allOk ? '1' : '0'));
         exit;
     }
 
@@ -296,8 +327,11 @@ $paymentModeOptions = ["Cash", "Card", "QR"];
         <div class="main">
             <div class="page-header">
                 <h1 class="page-title">All Guests</h1>
-                <button class="btn-add" type="button" onclick="openAddGuestModal()"><i class="fas fa-plus"></i> Add
-                    Guest Record</button>
+                <div style="display:flex; gap:10px; align-items:center;">
+                    <button class="btn-save" type="button" onclick="saveStatusChanges()" style="background:#16a34a;"><i class="fas fa-save"></i> Save</button>
+                    <button class="btn-add" type="button" onclick="openAddGuestModal()"><i class="fas fa-plus"></i> Add
+                        Guest Record</button>
+                </div>
             </div>
 
             <?php if ($message): ?>
@@ -324,6 +358,18 @@ $paymentModeOptions = ["Cash", "Card", "QR"];
                     <div class="input-group">
                         <label>Search by Name</label>
                         <input type="text" id="filterName" placeholder="e.g. Sita Rai">
+                    </div>
+                    <div class="input-group">
+                        <label>Room Number</label>
+                        <input type="text" id="filterRoom" placeholder="e.g. 101">
+                    </div>
+                    <div class="input-group">
+                        <label>Status</label>
+                        <select id="filterStatus">
+                            <option value="">All Statuses</option>
+                            <option value="Check in">Check in</option>
+                            <option value="Checked out">Checked out</option>
+                        </select>
                     </div>
                     <div class="input-group">
                         <label>Check-In From</label>
@@ -372,6 +418,7 @@ $paymentModeOptions = ["Cash", "Card", "QR"];
                                         data-first-name="<?= h($guest['first_name']); ?>"
                                         data-middle-name="<?= h($guest['middle_name']); ?>"
                                         data-last-name="<?= h($guest['last_name']); ?>"
+                                        data-room-number="<?= h($guest['room_number']); ?>"
                                         data-checkin="<?= h($guest['check_in_date']); ?>"
                                         data-checkout="<?= h($guest['check_out_date']); ?>"
                                         data-currency="<?= h($guest['currency']); ?>"
@@ -388,17 +435,12 @@ $paymentModeOptions = ["Cash", "Card", "QR"];
                                         <td><?= $guest['currency'] === 'NPR' ? h(number_format((float) $roomTotalPrice, 2)) : '—'; ?>
                                         </td>
                                         <td>
-                                            <form method="post" style="display:inline;">
-                                                <input type="hidden" name="action" value="update_status">
-                                                <input type="hidden" name="reservation_id"
-                                                    value="<?= h($guest['reservation_id']); ?>">
-                                                <select name="status" onchange="this.form.submit()"
-                                                    style="padding:6px 8px; border:1px solid #cbd5e1; border-radius:6px; min-width:120px;">
-                                                    <option value="" <?= (($guest['check_in_status'] ?? 'NOT CHECKED IN') === 'NOT CHECKED IN' && (($guest['check_out_status'] ?? 'NOT CHECKED OUT') === 'NOT CHECKED OUT') ? 'selected' : '') ?>></option>
-                                                    <option value="Check in" <?= (($guest['check_in_status'] ?? 'NOT CHECKED IN') === 'CHECKED IN' && (($guest['check_out_status'] ?? 'NOT CHECKED OUT') !== 'CHECKED OUT') ? 'selected' : '') ?>>Check in</option>
-                                                    <option value="Checked out" <?= (($guest['check_out_status'] ?? 'NOT CHECKED OUT') === 'CHECKED OUT' ? 'selected' : '') ?>>Checked out</option>
-                                                </select>
-                                            </form>
+                                            <select name="status" class="status-select" data-reservation-id="<?= h($guest['reservation_id']); ?>" onchange="applyFilters()"
+                                                style="padding:6px 8px; border:1px solid #cbd5e1; border-radius:6px; min-width:120px;">
+                                                <option value="" <?= (($guest['check_in_status'] ?? 'NOT CHECKED IN') === 'NOT CHECKED IN' && (($guest['check_out_status'] ?? 'NOT CHECKED OUT') === 'NOT CHECKED OUT') ? 'selected' : '') ?>></option>
+                                                <option value="Check in" <?= (($guest['check_in_status'] ?? 'NOT CHECKED IN') === 'CHECKED IN' && (($guest['check_out_status'] ?? 'NOT CHECKED OUT') !== 'CHECKED OUT') ? 'selected' : '') ?>>Check in</option>
+                                                <option value="Checked out" <?= (($guest['check_out_status'] ?? 'NOT CHECKED OUT') === 'CHECKED OUT' ? 'selected' : '') ?>>Checked out</option>
+                                            </select>
                                         </td>
                                         <td class="action-buttons">
                                             <button class="action-view" type="button" title="View" onclick="viewGuest(this)"><i
@@ -1081,6 +1123,8 @@ $paymentModeOptions = ["Cash", "Card", "QR"];
 
         function applyFilters() {
             const nameQuery = document.getElementById('filterName').value.trim().toLowerCase();
+            const roomQuery = document.getElementById('filterRoom').value.trim().toLowerCase();
+            const statusFilter = document.getElementById('filterStatus').value;
             const fromValue = document.getElementById('filterFrom').value;
             const toValue = document.getElementById('filterTo').value;
 
@@ -1092,10 +1136,15 @@ $paymentModeOptions = ["Cash", "Card", "QR"];
 
             rows.forEach(row => {
                 const fullName = `${row.dataset.firstName || ''} ${row.dataset.middleName || ''} ${row.dataset.lastName || ''}`.toLowerCase();
+                const roomNumber = (row.dataset.roomNumber || '').toLowerCase();
                 const checkin = row.dataset.checkin || '';
+                const statusSelect = row.querySelector('.status-select');
+                const currentStatus = statusSelect ? statusSelect.value : '';
 
                 let visible = true;
                 if (nameQuery && !fullName.includes(nameQuery)) visible = false;
+                if (roomQuery && !roomNumber.includes(roomQuery)) visible = false;
+                if (statusFilter && currentStatus !== statusFilter) visible = false;
                 if (fromValue && checkin < fromValue) visible = false;
                 if (toValue && checkin > toValue) visible = false;
 
@@ -1136,12 +1185,36 @@ $paymentModeOptions = ["Cash", "Card", "QR"];
 
         function resetFilters() {
             document.getElementById('filterName').value = '';
+            document.getElementById('filterRoom').value = '';
+            document.getElementById('filterStatus').value = '';
             document.getElementById('filterFrom').value = '';
             document.getElementById('filterTo').value = '';
             applyFilters();
         }
 
+        function saveStatusChanges() {
+            const form = document.getElementById('saveStatusForm');
+            form.innerHTML = '<input type="hidden" name="action" value="save_statuses">';
+
+            const selectElems = document.querySelectorAll('.status-select');
+            selectElems.forEach(select => {
+                const resId = select.dataset.reservationId;
+                const val = select.value;
+                if (resId) {
+                    const input = document.createElement('input');
+                    input.type = 'hidden';
+                    input.name = `statuses[${resId}]`;
+                    input.value = val;
+                    form.appendChild(input);
+                }
+            });
+
+            form.submit();
+        }
+
         document.getElementById('filterName').addEventListener('input', applyFilters);
+        document.getElementById('filterRoom').addEventListener('input', applyFilters);
+        document.getElementById('filterStatus').addEventListener('change', applyFilters);
         document.getElementById('filterFrom').addEventListener('change', applyFilters);
         document.getElementById('filterTo').addEventListener('change', applyFilters);
         document.addEventListener('DOMContentLoaded', applyFilters);
@@ -1149,6 +1222,8 @@ $paymentModeOptions = ["Cash", "Card", "QR"];
             document.addEventListener('DOMContentLoaded', () => openAddGuestModal());
         <?php endif; ?>
     </script>
+    <form id="saveStatusForm" method="post" style="display:none;"></form>
+
 </body>
 
 </html>
