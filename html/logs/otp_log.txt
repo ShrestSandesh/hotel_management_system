@@ -1,2 +1,4 @@
 [2026-08-24 23:16:45] Sent 2FA OTP '246543' to 'sandeshshre221@gmail.com' (Purpose: login)
 [2026-08-24 23:16:51] Sent 2FA OTP '917897' to 'sandeshshre221@gmail.com' (Purpose: login)
+[2026-08-30 08:00:02] Failed sending OTP '962432' to '238030_sandesh@kusom.edu.np' via SMTP (SMTP credentials missing from environment.). Logged locally for testing.
+[2026-08-30 11:26:16] Failed sending OTP '856451' to '238030_sandesh@kusom.edu.np' via SMTP (SMTP credentials missing from environment.). Logged locally for testing.

@@ -142,17 +142,11 @@ $paymentModeOptions = ["Cash", "Card", "QR"];
 $totalUSD = 0.0;
 $totalNPR = 0.0;
 foreach ($guests as $g) {
-    $extra = 0.0;
-    if (!empty($g['extra_charges'])) {
-        foreach ($g['extra_charges'] as $ec) {
-            $extra += (float) ($ec['price'] ?? 0);
-        }
-    }
-    $total = (float) $g['total_price'] + $extra;
+    $roomPrice = (float) ($g['total_price'] ?? 0);
     if (($g['currency'] ?? 'NPR') === 'USD') {
-        $totalUSD += $total;
+        $totalUSD += $roomPrice;
     } else {
-        $totalNPR += $total;
+        $totalNPR += $roomPrice;
     }
 }
 ?>

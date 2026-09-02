@@ -467,7 +467,7 @@ $reservations = getPendingCheckInReservations();
 
                     <div class="view-total-box">
                         <span>Total Payment (${currency})</span>
-                        <span class="grand-total">${currency} ${roomTotal.toFixed(2)}</span>
+                        <span class="grand-total">${currency} ${grandTotal.toFixed(2)}</span>
                     </div>
                 </div>
             `;
