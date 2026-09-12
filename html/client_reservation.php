@@ -160,12 +160,16 @@ $paymentModeOptions = ["Cash", "Card", "QR"];
             <div class="client-form-row">
                 <div class="client-input-group">
                     <label for="bookedVia">Booked via <span style="color:#ef4444;">*</span></label>
-                    <select id="bookedVia" required>
+                    <select id="bookedVia" onchange="handleBookedViaChange(this, 'clientBookedViaDetailGroup', 'clientBookedViaDetailLabel', 'bookedViaDetail')" required>
                         <option value="">Select Channel</option>
                         <?php foreach ($bookedViaOptions as $opt): ?>
                             <option value="<?= h($opt); ?>"><?= h($opt); ?></option>
                         <?php endforeach; ?>
                     </select>
+                    <div class="client-input-group" id="clientBookedViaDetailGroup" style="display:none; margin-top:8px;">
+                        <label id="clientBookedViaDetailLabel" style="font-size:12px; font-weight:600; color:#475569;">Agency / Referral Name</label>
+                        <input type="text" id="bookedViaDetail" placeholder="Enter name">
+                    </div>
                 </div>
                 <div class="client-input-group">
                     <label for="roomPlan">Room Plan <span style="color:#ef4444;">*</span></label>
@@ -369,7 +373,11 @@ $paymentModeOptions = ["Cash", "Card", "QR"];
                 address: document.getElementById('address').value.trim(),
                 id_type: document.getElementById('idType').value,
                 id_number: document.getElementById('idNumber').value.trim(),
-                booked_via: document.getElementById('bookedVia').value,
+                booked_via: (function() {
+                    let bv = document.getElementById('bookedVia').value;
+                    const d = (document.getElementById('bookedViaDetail').value || '').trim();
+                    return ((bv === 'Travel Agency' || bv === 'Referral') && d) ? bv + ' - ' + d : bv;
+                })(),
                 room_plan: document.getElementById('roomPlan').value,
                 guest_request: document.getElementById('guestRequest').value.trim(),
                 payment_mode: document.getElementById('paymentMode').value
@@ -427,6 +435,23 @@ $paymentModeOptions = ["Cash", "Card", "QR"];
                 }
             });
             loadRooms();
+        }
+
+        function handleBookedViaChange(selectElem, containerId, labelId, inputId) {
+            const val = selectElem ? selectElem.value : '';
+            const container = document.getElementById(containerId);
+            const label = document.getElementById(labelId);
+            const input = document.getElementById(inputId);
+            if (!container || !input) return;
+
+            if (val === 'Travel Agency' || val === 'Referral') {
+                container.style.display = 'block';
+                if (label) label.textContent = val === 'Travel Agency' ? 'Travel Agency Name' : 'Referral Name';
+                input.placeholder = val === 'Travel Agency' ? 'e.g. ABC Travels' : 'e.g. John Doe';
+            } else {
+                container.style.display = 'none';
+                input.value = '';
+            }
         }
 
         const today = new Date().toISOString().split('T')[0];

@@ -35,7 +35,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         'id_number' => trim($_POST['idNumber'] ?? '')
     ];
 
-    $bookedVia = trim($_POST['booked_via'] ?? '');
+    $bookedViaChannel = trim($_POST['booked_via'] ?? '');
+    $bookedViaDetail = trim($_POST['booked_via_detail'] ?? '');
+    $bookedVia = (($bookedViaChannel === 'Travel Agency' || $bookedViaChannel === 'Referral') && $bookedViaDetail !== '') ? $bookedViaChannel . ' - ' . $bookedViaDetail : $bookedViaChannel;
     $roomPlan = trim($_POST['room_plan'] ?? '');
     $guestRequest = trim($_POST['guest_request'] ?? '');
     $paymentMode = trim($_POST['payment_mode'] ?? '');
@@ -238,12 +240,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     <div class="row">
                         <div class="input-group">
                             <label>Booked via <span style="color:#ef4444;">*</span></label>
-                            <select name="booked_via" required>
+                            <select name="booked_via" id="adminBookedVia"
+                                onchange="handleBookedViaChange(this, 'adminBookedViaDetailGroup', 'adminBookedViaDetailLabel', 'adminBookedViaDetail')"
+                                required>
                                 <option value="">Select Channel</option>
                                 <?php foreach ($bookedViaOptions as $opt): ?>
                                     <option value="<?= h($opt); ?>"><?= h($opt); ?></option>
                                 <?php endforeach; ?>
                             </select>
+                            <div class="input-group" id="adminBookedViaDetailGroup"
+                                style="display:none; margin-top:8px;">
+                                <label id="adminBookedViaDetailLabel"
+                                    style="font-size:12px; font-weight:600; color:#475569;">Agency / Referral
+                                    Name</label>
+                                <input type="text" name="booked_via_detail" id="adminBookedViaDetail"
+                                    placeholder="Enter name">
+                            </div>
                         </div>
                         <div class="input-group">
                             <label>Room Plan <span style="color:#ef4444;">*</span></label>
@@ -255,7 +267,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             </select>
                         </div>
                         <div class="input-group">
-                            <label>Mode of Payment <span style="color:#94a3b8; font-weight:normal; font-size:12px;"></span></label>
+                            <label>Mode of Payment <span
+                                    style="color:#94a3b8; font-weight:normal; font-size:12px;"></span></label>
                             <select name="payment_mode">
                                 <option value="">Select Mode</option>
                                 <?php foreach ($paymentModeOptions as $opt): ?>
@@ -266,7 +279,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     </div>
                     <div class="row">
                         <div class="input-group">
-                            <label>Guests Request <span style="color:#94a3b8; font-weight:normal; font-size:12px;"></span></label>
+                            <label>Guests Request <span
+                                    style="color:#94a3b8; font-weight:normal; font-size:12px;"></span></label>
                             <input type="text" name="guest_request" placeholder="Special requests or notes">
                         </div>
                     </div>
@@ -471,6 +485,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     </div>
                 `;
                 container.appendChild(wrapper);
+            }
+        }
+
+        function handleBookedViaChange(selectElem, containerId, labelId, inputId) {
+            const val = selectElem ? selectElem.value : '';
+            const container = document.getElementById(containerId);
+            const label = document.getElementById(labelId);
+            const input = document.getElementById(inputId);
+            if (!container || !input) return;
+
+            if (val === 'Travel Agency' || val === 'Referral') {
+                container.style.display = 'block';
+                if (label) label.textContent = val === 'Travel Agency' ? 'Travel Agency Name' : 'Referral Name';
+                input.placeholder = val === 'Travel Agency' ? 'e.g. ABC Travels' : 'e.g. John Doe';
+            } else {
+                container.style.display = 'none';
+                input.value = '';
             }
         }
 

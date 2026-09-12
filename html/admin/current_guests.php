@@ -49,7 +49,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     'currency' => $_POST['currency'] ?? 'NPR',
                     'price_per_night' => (float) ($_POST['price_per_night'] ?? 0),
                     'payment_status' => $_POST['payment_status'] ?? 'UNPAID',
-                    'booked_via' => trim($_POST['booked_via'] ?? 'Walk-in'),
+                    'booked_via' => (function() {
+                        $bvChannel = trim($_POST['booked_via'] ?? 'Walk-in');
+                        $bvDetail = trim($_POST['booked_via_detail'] ?? '');
+                        return (($bvChannel === 'Travel Agency' || $bvChannel === 'Referral') && $bvDetail !== '') ? $bvChannel . ' - ' . $bvDetail : $bvChannel;
+                    })(),
                     'room_plan' => trim($_POST['room_plan'] ?? 'EP'),
                     'guest_request' => trim($_POST['guest_request'] ?? ''),
                     'payment_mode' => trim($_POST['payment_mode'] ?? 'Cash'),
@@ -377,12 +381,16 @@ foreach ($guests as $g) {
                     <div class="row">
                         <div class="input-group">
                             <label>Booked via <span style="color:#ef4444;">*</span></label>
-                            <select name="booked_via" id="editBookedVia" required>
+                            <select name="booked_via" id="editBookedVia" onchange="handleBookedViaChange(this, 'editBookedViaDetailGroup', 'editBookedViaDetailLabel', 'editBookedViaDetail')" required>
                                 <option value="">Select Channel</option>
                                 <?php foreach ($bookedViaOptions as $opt): ?>
                                     <option value="<?= h($opt); ?>"><?= h($opt); ?></option>
                                 <?php endforeach; ?>
                             </select>
+                            <div class="input-group" id="editBookedViaDetailGroup" style="display:none; margin-top:8px;">
+                                <label id="editBookedViaDetailLabel" style="font-size:12px; font-weight:600; color:#475569;">Agency / Referral Name</label>
+                                <input type="text" name="booked_via_detail" id="editBookedViaDetail" placeholder="Enter name">
+                            </div>
                         </div>
                         <div class="input-group">
                             <label>Room Plan <span style="color:#ef4444;">*</span></label>
@@ -441,14 +449,13 @@ foreach ($guests as $g) {
                             <h5 style="margin:0; font-size:13px; text-transform:uppercase; letter-spacing:0.04em; color:#475569; font-weight:800; display:flex; align-items:center; gap:6px;">
                                 <i class="fas fa-concierge-bell"></i> Extra Services
                             </h5>
-                            <span style="font-size:12px; font-weight:700; color:#64748b;" id="extraServicesCounter">(0/5)</span>
+                            <span style="font-size:12px; font-weight:700; color:#64748b;" id="extraServicesCounter"></span>
                         </div>
                         <div id="extraServicesContainer"></div>
                         <div style="margin-top:10px;">
                             <button type="button" id="btnAddExtraService" onclick="addExtraServiceRow()" style="background:none; border:none; color:#2563eb; font-weight:700; font-size:13.5px; cursor:pointer; padding:4px 0; display:inline-flex; align-items:center; gap:6px;">
                                 <i class="fas fa-plus-circle"></i> Add extra service
                             </button>
-                            <span id="maxServicesMsg" style="display:none; color:#94a3b8; font-size:12.5px; font-weight:600;">Maximum of 5 extra services reached.</span>
                         </div>
                     </div>
                     <div class="modal-footer">
@@ -499,8 +506,21 @@ foreach ($guests as $g) {
             return d.toLocaleString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
         }
 
-        function statusBadgeClass(status) {
-            return String(status || '').toLowerCase().replace(/\s+/g, '-');
+        function handleBookedViaChange(selectElem, containerId, labelId, inputId) {
+            const val = selectElem ? selectElem.value : '';
+            const container = document.getElementById(containerId);
+            const label = document.getElementById(labelId);
+            const input = document.getElementById(inputId);
+            if (!container || !input) return;
+
+            if (val === 'Travel Agency' || val === 'Referral') {
+                container.style.display = 'block';
+                if (label) label.textContent = val === 'Travel Agency' ? 'Travel Agency Name' : 'Referral Name';
+                input.placeholder = val === 'Travel Agency' ? 'e.g. ABC Travels' : 'e.g. John Doe';
+            } else {
+                container.style.display = 'none';
+                input.value = '';
+            }
         }
 
         function field(label, value, isMuted) {
@@ -511,11 +531,6 @@ foreach ($guests as $g) {
 
         function addExtraServiceRow(name = '', price = '') {
             const container = document.getElementById('extraServicesContainer');
-            const rows = container.querySelectorAll('.extra-service-row');
-            if (rows.length >= 5) {
-                updateExtraServicesState();
-                return;
-            }
 
             const row = document.createElement('div');
             row.className = 'row extra-service-row';
@@ -554,18 +569,10 @@ foreach ($guests as $g) {
             const container = document.getElementById('extraServicesContainer');
             const count = container.querySelectorAll('.extra-service-row').length;
             const btn = document.getElementById('btnAddExtraService');
-            const msg = document.getElementById('maxServicesMsg');
             const counter = document.getElementById('extraServicesCounter');
 
-            if (counter) counter.textContent = `(${count}/5)`;
-
-            if (count >= 5) {
-                if (btn) btn.style.display = 'none';
-                if (msg) msg.style.display = 'inline';
-            } else {
-                if (btn) btn.style.display = 'inline-flex';
-                if (msg) msg.style.display = 'none';
-            }
+            if (counter) counter.textContent = count > 0 ? `(${count})` : '';
+            if (btn) btn.style.display = 'inline-flex';
         }
 
         function renderExtraOccupantsForm(containerId, occupancyCount, occupantsData = []) {
@@ -632,7 +639,7 @@ foreach ($guests as $g) {
                 ? extraCharges.map(c => `
                     <tr>
                         <td style="padding:7px 8px; font-weight:600;">${escapeHtml(c.service_name)}</td>
-                        <td style="padding:7px 8px; text-align:right; font-weight:700;">${escapeHtml(currency)} ${parseFloat(c.price).toFixed(2)}</td>
+                        <td style="padding:7px 8px; text-align:right; font-weight:700;">NPR ${parseFloat(c.price).toFixed(2)}</td>
                     </tr>
                 `).join('')
                 : `<tr><td colspan="2" class="muted" style="padding:8px; color:#94a3b8; font-style:italic;">No extra services added</td></tr>`;
@@ -734,6 +741,12 @@ foreach ($guests as $g) {
                             <tbody>
                                 ${extraChargesRows}
                             </tbody>
+                            <tfoot>
+                                <tr style="border-top:1px solid #cbd5e1; font-weight:700;">
+                                    <td style="padding:7px 8px; text-align:left;">Total Extra Services</td>
+                                    <td style="padding:7px 8px; text-align:right; color:#2563eb; font-weight:700;">NPR ${extraTotal.toFixed(2)}</td>
+                                </tr>
+                            </tfoot>
                         </table>
                     </div>
 
@@ -782,7 +795,20 @@ foreach ($guests as $g) {
             document.getElementById('editPrice').value = guest.price_per_night || '0';
             document.getElementById('editOccupancy').value = guest.occupancy || '1';
             document.getElementById('editPaymentStatus').value = guest.payment_status || 'UNPAID';
-            document.getElementById('editBookedVia').value = guest.booked_via || '';
+            const bookedViaRaw = guest.booked_via || '';
+            const editBvSelect = document.getElementById('editBookedVia');
+            const editBvDetail = document.getElementById('editBookedViaDetail');
+            if (bookedViaRaw.startsWith('Travel Agency')) {
+                editBvSelect.value = 'Travel Agency';
+                editBvDetail.value = bookedViaRaw.replace(/^Travel Agency\s*[\-:\(]?\s*/i, '').replace(/\)$/, '');
+            } else if (bookedViaRaw.startsWith('Referral')) {
+                editBvSelect.value = 'Referral';
+                editBvDetail.value = bookedViaRaw.replace(/^Referral\s*[\-:\(]?\s*/i, '').replace(/\)$/, '');
+            } else {
+                editBvSelect.value = bookedViaRaw;
+                editBvDetail.value = '';
+            }
+            handleBookedViaChange(editBvSelect, 'editBookedViaDetailGroup', 'editBookedViaDetailLabel', 'editBookedViaDetail');
             document.getElementById('editRoomPlan').value = guest.room_plan || '';
             document.getElementById('editGuestRequest').value = guest.guest_request || '';
             document.getElementById('editPaymentMode').value = guest.payment_mode || '';

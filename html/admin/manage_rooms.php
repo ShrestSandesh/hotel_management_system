@@ -404,7 +404,7 @@ $reservations = getPendingCheckInReservations();
                 ? charges.map(c => `
                     <tr>
                         <td>${escapeHtml(c.service_name)}</td>
-                        <td>${currency} ${parseFloat(c.price).toFixed(2)}</td>
+                        <td>NPR ${parseFloat(c.price).toFixed(2)}</td>
                     </tr>
                 `).join('')
                 : `<tr><td colspan="2" class="muted">No extra charges added</td></tr>`;
@@ -461,7 +461,7 @@ $reservations = getPendingCheckInReservations();
                         <table class="view-charges-table" style="margin-top:12px;">
                             <thead><tr><th>Extra Service</th><th>Price</th></tr></thead>
                             <tbody>${chargesRows}</tbody>
-                            ${charges.length ? `<tfoot><tr><td>Extra Charges Subtotal</td><td>${currency} ${chargesTotal.toFixed(2)}</td></tr></tfoot>` : ''}
+                            <tfoot><tr style="border-top:1px solid #cbd5e1; font-weight:700;"><td style="padding:7px 8px; text-align:left;">Total Extra Services</td><td style="padding:7px 8px; text-align:right; color:#2563eb; font-weight:700;">NPR ${chargesTotal.toFixed(2)}</td></tr></tfoot>
                         </table>
                     </div>
 

@@ -100,7 +100,7 @@ function ensureDatabaseSchema()
             check_out_status ENUM('NOT CHECKED OUT','CHECKED OUT') NOT NULL DEFAULT 'NOT CHECKED OUT',
             source ENUM('admin','client') NOT NULL DEFAULT 'admin',
             user_id INT NULL,
-            booked_via VARCHAR(60) NOT NULL DEFAULT 'Walk-in',
+            booked_via VARCHAR(255) NOT NULL DEFAULT 'Walk-in',
             guest_request TEXT NULL,
             room_plan VARCHAR(20) NOT NULL DEFAULT 'EP',
             payment_mode VARCHAR(30) NULL DEFAULT 'Cash',
@@ -179,7 +179,8 @@ function ensureDatabaseSchema()
     ensureColumn('users', 'role', "role VARCHAR(20) NOT NULL DEFAULT 'client'");
     ensureColumn('room_types', 'rate_per_night', "rate_per_night DECIMAL(12,2) NOT NULL DEFAULT 0");
     ensureColumn('reservations', 'user_id', "user_id INT NULL");
-    ensureColumn('reservations', 'booked_via', "booked_via VARCHAR(60) NOT NULL DEFAULT 'Walk-in'");
+    ensureColumn('reservations', 'booked_via', "booked_via VARCHAR(255) NOT NULL DEFAULT 'Walk-in'");
+    @mysqli_query($conn, "ALTER TABLE reservations MODIFY booked_via VARCHAR(255) NOT NULL DEFAULT 'Walk-in'");
     ensureColumn('reservations', 'guest_request', "guest_request TEXT NULL");
     ensureColumn('reservations', 'room_plan', "room_plan VARCHAR(20) NOT NULL DEFAULT 'EP'");
     ensureColumn('reservations', 'payment_mode', "payment_mode VARCHAR(30) NULL DEFAULT 'Cash'");

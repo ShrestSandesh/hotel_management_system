@@ -413,7 +413,7 @@ function getCheckedInGuestsFromReservations()
          JOIN guests g ON g.id = r.guest_id
          JOIN rooms rm ON rm.id = r.room_id
          JOIN room_types rt ON rt.id = rm.room_type_id
-         ORDER BY r.created_at DESC"
+         ORDER BY r.check_in_date DESC, r.id DESC"
     );
 
     if (!$result) {
@@ -484,7 +484,7 @@ function getCurrentGuestsFromReservations()
          WHERE r.check_in_date <= CURDATE()
            AND r.check_out_date >= CURDATE()
            AND r.check_out_status != 'CHECKED OUT'
-         ORDER BY r.created_at DESC"
+         ORDER BY r.check_in_date DESC, r.id DESC"
     );
 
     if (!$result) {
