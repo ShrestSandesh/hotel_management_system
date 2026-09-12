@@ -815,6 +815,10 @@ $paymentModeOptions = ["Cash", "Card", "QR"];
             return d.toLocaleString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
         }
 
+        function statusBadgeClass(status) {
+            return String(status || '').toLowerCase().replace(/\s+/g, '-');
+        }
+
         function handleBookedViaChange(selectElem, containerId, labelId, inputId) {
             const val = selectElem ? selectElem.value : '';
             const container = document.getElementById(containerId);
