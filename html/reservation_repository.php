@@ -360,7 +360,7 @@ function getAllGuestsFromReservations()
     $result = mysqli_query(
         $conn,
         "SELECT r.id AS reservation_id, r.reservation_number, r.check_in_date, r.check_out_date,
-                r.occupancy, r.currency, r.total_price, r.payment_status, r.source, r.created_at,
+                r.occupancy, r.currency, r.total_price, r.payment_status, r.source, r.created_at, r.booked_via, r.guest_request, r.room_plan, r.payment_mode, r.bank,
                 g.id AS guest_id, g.first_name, g.middle_name, g.last_name, g.country, g.contact_number,
                 g.email, g.address, g.id_type, g.id_number, rm.room_number, rt.name AS room_type_name
          FROM reservations r
@@ -413,7 +413,7 @@ function getCheckedInGuestsFromReservations()
         $conn,
         "SELECT r.id AS reservation_id, r.room_id, r.price_per_night, r.reservation_number, r.check_in_date, r.check_out_date,
                 r.occupancy, r.currency, r.total_price, r.payment_status, r.check_in_status,
-                r.check_out_status, r.source, r.created_at, r.booked_via, r.guest_request, r.room_plan, r.payment_mode,
+                r.check_out_status, r.source, r.created_at, r.booked_via, r.guest_request, r.room_plan, r.payment_mode, r.bank,
                 g.id AS guest_id, g.first_name, g.middle_name, g.last_name, g.country, g.contact_number,
                 g.email, g.address, g.id_type, g.id_number, rm.room_number, rt.name AS room_type_name
          FROM reservations r
@@ -481,7 +481,7 @@ function getCurrentGuestsFromReservations()
         $conn,
         "SELECT r.id AS reservation_id, r.room_id, r.price_per_night, r.reservation_number, r.check_in_date, r.check_out_date,
                 r.occupancy, r.currency, r.total_price, r.payment_status, r.check_in_status,
-                r.check_out_status, r.source, r.created_at, r.booked_via, r.guest_request, r.room_plan, r.payment_mode,
+                r.check_out_status, r.source, r.created_at, r.booked_via, r.guest_request, r.room_plan, r.payment_mode, r.bank,
                 g.id AS guest_id, g.first_name, g.middle_name, g.last_name, g.country, g.contact_number,
                 g.email, g.address, g.id_type, g.id_number, rm.room_number, rt.name AS room_type_name
          FROM reservations r

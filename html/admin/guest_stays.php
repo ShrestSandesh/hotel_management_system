@@ -1220,6 +1220,7 @@ $bankOptions = ["Sulimha Nabil", "Sulimha HBL", "LHC Nabil", "LHC HBL"];
             const tokens = queryRaw.split(',').map(s => s.trim().toLowerCase()).filter(s => s.length > 0);
             if (tokens.length === 0) return true;
             const target = (targetValue || '').trim().toLowerCase();
+            if (!target) return false;
             return tokens.some(token => target === token || target.includes(token) || token.includes(target));
         }
 
