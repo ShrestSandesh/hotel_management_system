@@ -20,6 +20,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $roomId = (int) ($_POST['room_id'] ?? 0);
     $checkIn = trim($_POST['checkin'] ?? '');
     $checkOut = trim($_POST['checkout'] ?? '');
+    $currency = $_POST['currency'] ?? 'NPR';
     $pricePerNight = (float) ($_POST['price_per_night'] ?? 0);
     $totalPayment = (float) ($_POST['total_payment'] ?? 0);
     $occupancy = (int) ($_POST['occupancy'] ?? 1);
