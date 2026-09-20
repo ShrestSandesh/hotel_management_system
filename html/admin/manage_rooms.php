@@ -15,7 +15,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = $_POST['action'] ?? '';
 
     if ($action === 'check_in') {
-        $ok = updateReservationCheckInStatus((int) $_POST['reservation_id'], 'CHECKED IN');
+        $reservationId = (int) ($_POST['reservation_id'] ?? 0);
+        $reservation = getReservationById($reservationId);
+        $ok = updateReservationCheckInStatus($reservationId, 'CHECKED IN');
+        if ($ok && $reservation && !empty($reservation['room_id'])) {
+            updateRoomStatus((int) $reservation['room_id'], 'Occupied');
+        }
         header('Location: manage_rooms.php?updated=' . ($ok ? '1' : '0'));
         exit;
     }

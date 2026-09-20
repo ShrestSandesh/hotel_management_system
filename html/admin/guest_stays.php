@@ -48,6 +48,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     'occupancy' => (int) ($_POST['occupancy'] ?? 1),
                     'currency' => $_POST['currency'] ?? 'NPR',
                     'price_per_night' => (float) ($_POST['price_per_night'] ?? 0),
+                    'total_payment' => (float) ($_POST['total_payment'] ?? 0),
                     'payment_status' => $_POST['payment_status'] ?? 'UNPAID',
                     'booked_via' => (function() {
                         $bvChannel = trim($_POST['booked_via'] ?? 'Walk-in');
@@ -57,6 +58,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     'room_plan' => trim($_POST['room_plan'] ?? 'EP'),
                     'guest_request' => trim($_POST['guest_request'] ?? ''),
                     'payment_mode' => trim($_POST['payment_mode'] ?? 'Cash'),
+                    'bank' => trim($_POST['bank'] ?? ''),
                     'extra_charges' => $extraCharges,
                     'occupants' => $_POST['occupants'] ?? [],
                     'guest' => [
@@ -117,6 +119,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                 $checkInOk = updateReservationCheckInStatus($reservationId, $checkInStatus);
                 $checkOutOk = updateReservationCheckOutStatus($reservationId, $checkOutStatus);
+                if ($checkInOk && $selectedStatus === 'Check in') {
+                    $res = getReservationById($reservationId);
+                    if ($res && !empty($res['room_id'])) {
+                        updateRoomStatus((int) $res['room_id'], 'Occupied');
+                    }
+                }
+
                 if (!$checkInOk || !$checkOutOk) {
                     $allOk = false;
                 }
@@ -139,6 +148,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             $checkInOk = updateReservationCheckInStatus($reservationId, $checkInStatus);
             $checkOutOk = updateReservationCheckOutStatus($reservationId, $checkOutStatus);
+            if ($checkInOk && $selectedStatus === 'Check in') {
+                $res = getReservationById($reservationId);
+                if ($res && !empty($res['room_id'])) {
+                    updateRoomStatus((int) $res['room_id'], 'Occupied');
+                }
+            }
             $allOk = $checkInOk && $checkOutOk;
             $updatedAny = true;
         }
@@ -157,7 +172,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $checkOut = trim($_POST['check_out_date'] ?? '');
         $occupancy = (int) ($_POST['occupancy'] ?? 1);
         $currency = ($_POST['currency'] ?? 'NPR') === 'USD' ? 'USD' : 'NPR';
-        $pricePerNight = (float) ($_POST['price_per_night'] ?? $_POST['payment_amount'] ?? 0);
+        $pricePerNight = (float) ($_POST['price_per_night'] ?? 0);
+        $totalPayment = (float) ($_POST['total_payment'] ?? 0);
         $idType = trim($_POST['id_type'] ?? '');
         $idNumber = trim($_POST['id_number'] ?? '');
         $bookedViaChannel = trim($_POST['booked_via'] ?? '');
@@ -167,8 +183,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $guestRequest = trim($_POST['guest_request'] ?? '');
         $paymentMode = trim($_POST['payment_mode'] ?? '');
 
-        if ($guestName === '' || $country === '' || $roomId <= 0 || $checkIn === '' || $checkOut === '' || $pricePerNight <= 0 || $bookedVia === '' || $roomPlan === '') {
-            $message = 'Guest Name, Country, Room Number, Check-In & Out dates, Price Per Night, Booked via, and Room Plan are required.';
+        if ($guestName === '' || $country === '' || $roomId <= 0 || $checkIn === '' || $checkOut === '' || ($pricePerNight <= 0 && $totalPayment <= 0) || $bookedVia === '' || $roomPlan === '') {
+            $message = 'Guest Name, Country, Room Number, Check-In & Out dates, Price Per Night or Total Payment, Booked via, and Room Plan are required.';
             $messageType = 'error';
         } elseif (strtotime($checkOut) <= strtotime($checkIn)) {
             $message = 'Check-out date must be after check-in date.';
@@ -192,10 +208,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'occupancy' => max(1, $occupancy),
                 'currency' => $currency,
                 'price_per_night' => $pricePerNight,
+                'total_payment' => $totalPayment,
                 'booked_via' => $bookedVia,
                 'room_plan' => $roomPlan,
                 'guest_request' => $guestRequest,
                 'payment_mode' => $paymentMode,
+                'bank' => trim($_POST['bank'] ?? ''),
                 'occupants' => $_POST['occupants'] ?? [],
                 'guest' => [
                     'first_name' => $firstName,
@@ -251,6 +269,7 @@ $idTypeOptions = ["Passport", "Citizenship", "National ID", "Driver's License", 
 $bookedViaOptions = ["Booking.com", "Agoda.com", "Ctrip", "Expedia", "Airbnb", "Walk-in", "Whatsapp", "Website", "Travel Agency", "Referral"];
 $roomPlanOptions = ["EP", "BB", "MAP", "AP"];
 $paymentModeOptions = ["Cash", "Card", "QR"];
+$bankOptions = ["Sulimha Nabil", "Sulimha HBL", "LHC Nabil", "LHC HBL"];
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -367,7 +386,16 @@ $paymentModeOptions = ["Cash", "Card", "QR"];
                     </div>
                     <div class="input-group">
                         <label>Room Number</label>
-                        <input type="text" id="filterRoom" placeholder="e.g. 101">
+                        <input type="text" id="filterRoom" placeholder="e.g. 103, 104, 105">
+                    </div>
+                    <div class="input-group">
+                        <label>Bank</label>
+                        <select id="filterBank">
+                            <option value="">All Banks</option>
+                            <?php foreach ($bankOptions as $opt): ?>
+                                <option value="<?= h($opt); ?>"><?= h($opt); ?></option>
+                            <?php endforeach; ?>
+                        </select>
                     </div>
                     <div class="input-group">
                         <label>Status</label>
@@ -428,6 +456,8 @@ $paymentModeOptions = ["Cash", "Card", "QR"];
                                         data-checkin="<?= h($guest['check_in_date']); ?>"
                                         data-checkout="<?= h($guest['check_out_date']); ?>"
                                         data-currency="<?= h($guest['currency']); ?>"
+                                        data-payment-mode="<?= h($guest['payment_mode'] ?? ''); ?>"
+                                        data-bank="<?= h($guest['bank'] ?? ''); ?>"
                                         data-total-price="<?= h($roomTotalPrice); ?>">
                                         <td style="font-weight:700; color:#475569; text-align:center; width:50px;"><?= $sn++; ?></td>
                                         <td><?= h($guest['reservation_number']); ?></td>
@@ -527,7 +557,9 @@ $paymentModeOptions = ["Cash", "Card", "QR"];
                                 <option value="USD">USD</option>
                             </select></div>
                         <div class="input-group"><label>Price Per Night</label><input type="number" step="0.01"
-                                name="price_per_night" id="editPrice" required></div>
+                                name="price_per_night" id="editPrice" placeholder="e.g. 2000"></div>
+                        <div class="input-group"><label>Total Payment</label><input type="number" step="0.01"
+                                name="total_payment" id="editTotalPrice" placeholder="e.g. 5000"></div>
                         <div class="input-group"><label>Occupancy</label><input type="number" min="1" max="4" name="occupancy"
                                 id="editOccupancy" onchange="renderExtraOccupantsForm('editExtraOccupantsContainer', parseInt(this.value, 10))" required></div>
                         <div class="input-group"><label>Payment Status</label><select name="payment_status"
@@ -562,10 +594,19 @@ $paymentModeOptions = ["Cash", "Card", "QR"];
                         </div>
                         <div class="input-group">
                             <label>Mode of Payment <span style="color:#94a3b8; font-weight:normal; font-size:12px;"></span></label>
-                            <select name="payment_mode" id="editPaymentMode">
+                            <select name="payment_mode" id="editPaymentMode" onchange="handlePaymentModeChange(this, 'editBankGroup', 'editBankSelect')">
                                 <option value="">Select Mode</option>
                                 <?php foreach ($paymentModeOptions as $opt): ?>
                                     <option value="<?= h($opt); ?>"><?= h($opt); ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                        <div class="input-group" id="editBankGroup" style="display:none;">
+                            <label>Bank <span style="color:#ef4444;">*</span></label>
+                            <select name="bank" id="editBankSelect">
+                                <option value="">Select Bank</option>
+                                <?php foreach ($bankOptions as $bOpt): ?>
+                                    <option value="<?= h($bOpt); ?>"><?= h($bOpt); ?></option>
                                 <?php endforeach; ?>
                             </select>
                         </div>
@@ -688,9 +729,12 @@ $paymentModeOptions = ["Cash", "Card", "QR"];
                     </div>
                     <div class="row">
                         <div class="input-group">
-                            <label>Price Per Night <span style="color:#ef4444;">*</span></label>
-                            <input type="number" name="price_per_night" id="addGuestPrice" min="0" step="0.01" placeholder="Price Per Night"
-                                required>
+                            <label>Price Per Night</label>
+                            <input type="number" name="price_per_night" id="addGuestPrice" min="0" step="0.01" placeholder="Price Per Night">
+                        </div>
+                        <div class="input-group">
+                            <label>Total Payment</label>
+                            <input type="number" name="total_payment" id="addGuestTotalPrice" min="0" step="0.01" placeholder="Total Payment">
                         </div>
                         <div class="input-group">
                             <label>Currency</label>
@@ -724,11 +768,20 @@ $paymentModeOptions = ["Cash", "Card", "QR"];
                             </select>
                         </div>
                         <div class="input-group">
-                            <label>Mode of Payment <span style="color:#94a3b8; font-weight:normal; font-size:12px;">(</span></label>
-                            <select name="payment_mode">
+                            <label>Mode of Payment <span style="color:#94a3b8; font-weight:normal; font-size:12px;"></span></label>
+                            <select name="payment_mode" id="addPaymentMode" onchange="handlePaymentModeChange(this, 'addBankGroup', 'addBankSelect')">
                                 <option value="">Select Mode</option>
                                 <?php foreach ($paymentModeOptions as $opt): ?>
                                     <option value="<?= h($opt); ?>"><?= h($opt); ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                        <div class="input-group" id="addBankGroup" style="display:none;">
+                            <label>Bank <span style="color:#ef4444;">*</span></label>
+                            <select name="bank" id="addBankSelect">
+                                <option value="">Select Bank</option>
+                                <?php foreach ($bankOptions as $bOpt): ?>
+                                    <option value="<?= h($bOpt); ?>"><?= h($bOpt); ?></option>
                                 <?php endforeach; ?>
                             </select>
                         </div>
@@ -1007,6 +1060,7 @@ $paymentModeOptions = ["Cash", "Card", "QR"];
                             ${field('Check-In Date', formatDate(guest.check_in_date))}
                             ${field('Check-Out Date', formatDate(guest.check_out_date))}
                             ${field('Price Per Night', (guest.currency || 'NPR') + ' ' + parseFloat(guest.price_per_night || 0).toFixed(2))}
+                            ${field('Total Payment', (guest.currency || 'NPR') + ' ' + parseFloat(guest.total_price || 0).toFixed(2))}
                             ${field('Occupancy (Guests)', guest.occupancy)}
                         </div>
                     </div>
@@ -1017,6 +1071,7 @@ $paymentModeOptions = ["Cash", "Card", "QR"];
                             ${field('Booked Via', guest.booked_via)}
                             ${field('Room Plan', guest.room_plan)}
                             ${field('Mode of Payment', guest.payment_mode)}
+                            ${field('Bank', guest.bank)}
                         </div>
                         <div class="view-grid single" style="margin-top:10px;">
                             ${field('Guests Request', guest.guest_request)}
@@ -1105,7 +1160,8 @@ $paymentModeOptions = ["Cash", "Card", "QR"];
             document.getElementById('editCheckIn').value = guest.check_in_date || '';
             document.getElementById('editCheckOut').value = guest.check_out_date || '';
             document.getElementById('editCurrency').value = guest.currency || 'NPR';
-            document.getElementById('editPrice').value = guest.price_per_night || '0';
+            document.getElementById('editPrice').value = guest.price_per_night || '';
+            document.getElementById('editTotalPrice').value = guest.total_price || '';
             document.getElementById('editOccupancy').value = guest.occupancy || '1';
             document.getElementById('editPaymentStatus').value = guest.payment_status || 'UNPAID';
             const bookedViaRaw = guest.booked_via || '';
@@ -1125,6 +1181,8 @@ $paymentModeOptions = ["Cash", "Card", "QR"];
             document.getElementById('editRoomPlan').value = guest.room_plan || '';
             document.getElementById('editGuestRequest').value = guest.guest_request || '';
             document.getElementById('editPaymentMode').value = guest.payment_mode || '';
+            handlePaymentModeChange(document.getElementById('editPaymentMode'), 'editBankGroup', 'editBankSelect');
+            document.getElementById('editBankSelect').value = guest.bank || '';
             document.getElementById('editFirstName').value = guest.first_name || '';
             document.getElementById('editMiddleName').value = guest.middle_name || '';
             document.getElementById('editLastName').value = guest.last_name || '';
@@ -1157,9 +1215,34 @@ $paymentModeOptions = ["Cash", "Card", "QR"];
             document.getElementById('editModal').style.display = 'flex';
         }
 
+        function matchesMultiCriteria(targetValue, queryRaw) {
+            if (!queryRaw || !queryRaw.trim()) return true;
+            const tokens = queryRaw.split(',').map(s => s.trim().toLowerCase()).filter(s => s.length > 0);
+            if (tokens.length === 0) return true;
+            const target = (targetValue || '').trim().toLowerCase();
+            return tokens.some(token => target === token || target.includes(token) || token.includes(target));
+        }
+
+        function handlePaymentModeChange(selectElem, bankGroupId, bankSelectId) {
+            const val = selectElem ? selectElem.value : '';
+            const container = document.getElementById(bankGroupId);
+            const select = document.getElementById(bankSelectId);
+            if (!container || !select) return;
+
+            if (val === 'QR' || val === 'Card') {
+                container.style.display = 'block';
+                select.required = true;
+            } else {
+                container.style.display = 'none';
+                select.required = false;
+                select.value = '';
+            }
+        }
+
         function applyFilters() {
             const nameQuery = document.getElementById('filterName').value.trim().toLowerCase();
-            const roomQuery = document.getElementById('filterRoom').value.trim().toLowerCase();
+            const roomQuery = document.getElementById('filterRoom').value;
+            const bankQuery = document.getElementById('filterBank').value;
             const statusFilter = document.getElementById('filterStatus').value;
             const fromValue = document.getElementById('filterFrom').value;
             const toValue = document.getElementById('filterTo').value;
@@ -1172,14 +1255,16 @@ $paymentModeOptions = ["Cash", "Card", "QR"];
 
             rows.forEach(row => {
                 const fullName = `${row.dataset.firstName || ''} ${row.dataset.middleName || ''} ${row.dataset.lastName || ''}`.toLowerCase();
-                const roomNumber = (row.dataset.roomNumber || '').toLowerCase();
+                const roomNumber = row.dataset.roomNumber || '';
+                const bankName = row.dataset.bank || '';
                 const checkin = row.dataset.checkin || '';
                 const statusSelect = row.querySelector('.status-select');
                 const currentStatus = statusSelect ? statusSelect.value : '';
 
                 let visible = true;
                 if (nameQuery && !fullName.includes(nameQuery)) visible = false;
-                if (roomQuery && !roomNumber.includes(roomQuery)) visible = false;
+                if (!matchesMultiCriteria(roomNumber, roomQuery)) visible = false;
+                if (!matchesMultiCriteria(bankName, bankQuery)) visible = false;
                 if (statusFilter && currentStatus !== statusFilter) visible = false;
                 if (fromValue && checkin < fromValue) visible = false;
                 if (toValue && checkin > toValue) visible = false;
@@ -1222,6 +1307,7 @@ $paymentModeOptions = ["Cash", "Card", "QR"];
         function resetFilters() {
             document.getElementById('filterName').value = '';
             document.getElementById('filterRoom').value = '';
+            document.getElementById('filterBank').value = '';
             document.getElementById('filterStatus').value = '';
             document.getElementById('filterFrom').value = '';
             document.getElementById('filterTo').value = '';
@@ -1250,6 +1336,7 @@ $paymentModeOptions = ["Cash", "Card", "QR"];
 
         document.getElementById('filterName').addEventListener('input', applyFilters);
         document.getElementById('filterRoom').addEventListener('input', applyFilters);
+        document.getElementById('filterBank').addEventListener('change', applyFilters);
         document.getElementById('filterStatus').addEventListener('change', applyFilters);
         document.getElementById('filterFrom').addEventListener('change', applyFilters);
         document.getElementById('filterTo').addEventListener('change', applyFilters);

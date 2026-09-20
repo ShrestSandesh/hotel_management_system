@@ -166,8 +166,13 @@ function createReservation($data)
             $extraOccupantsPrice += (float) ($occ['price_per_night'] ?? 0);
         }
     }
-    $mainPricePerNight = (float) $data['price_per_night'];
-    $totalPrice = $totalNights * ($mainPricePerNight + $extraOccupantsPrice);
+    $mainPricePerNight = (float) ($data['price_per_night'] ?? 0);
+    $customTotalPrice = (float) ($data['total_payment'] ?? $data['total_price'] ?? 0);
+    if ($customTotalPrice > 0) {
+        $totalPrice = $customTotalPrice;
+    } else {
+        $totalPrice = $totalNights * ($mainPricePerNight + $extraOccupantsPrice);
+    }
     $paymentStatus = 'UNPAID';
     $source = $data['source'] ?? 'admin';
     $checkInStatus = ($source === 'admin') ? 'CHECKED IN' : 'NOT CHECKED IN';
@@ -176,19 +181,20 @@ function createReservation($data)
     $guestRequest = trim($data['guest_request'] ?? '');
     $roomPlan = trim($data['room_plan'] ?? 'EP');
     $paymentMode = trim($data['payment_mode'] ?? 'Cash');
+    $bank = (!empty($data['bank']) && in_array($paymentMode, ['QR', 'Card'], true)) ? trim($data['bank']) : null;
 
     $stmt = mysqli_prepare(
         $conn,
         "INSERT INTO reservations
             (reservation_number, guest_id, room_id, check_in_date, check_out_date, occupancy, currency,
              price_per_night, total_nights, total_price, payment_status, check_in_status, check_out_status, source, user_id,
-             booked_via, guest_request, room_plan, payment_mode)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+             booked_via, guest_request, room_plan, payment_mode, bank)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
     );
 
     mysqli_stmt_bind_param(
         $stmt,
-        'siissisdidssssissss',
+        'siissisdidssssisssss',
         $reservationNumber,
         $guestId,
         $data['room_id'],
@@ -207,7 +213,8 @@ function createReservation($data)
         $bookedVia,
         $guestRequest,
         $roomPlan,
-        $paymentMode
+        $paymentMode,
+        $bank
     );
 
     if (!mysqli_stmt_execute($stmt)) {
@@ -572,7 +579,12 @@ function createQuickGuestReservation($data)
         }
     }
     $mainPricePerNight = (float) ($data['price_per_night'] ?? 0);
-    $totalPrice = $totalNights * ($mainPricePerNight + $extraOccupantsPrice);
+    $customTotalPrice = (float) ($data['total_payment'] ?? $data['total_price'] ?? 0);
+    if ($customTotalPrice > 0) {
+        $totalPrice = $customTotalPrice;
+    } else {
+        $totalPrice = $totalNights * ($mainPricePerNight + $extraOccupantsPrice);
+    }
     $currency = $data['currency'] ?? 'NPR';
     $occupancy = (int) ($data['occupancy'] ?? 1);
     $paymentStatus = 'PAID';
@@ -584,14 +596,15 @@ function createQuickGuestReservation($data)
     $guestRequest = trim($data['guest_request'] ?? '');
     $roomPlan = trim($data['room_plan'] ?? 'EP');
     $paymentMode = trim($data['payment_mode'] ?? 'Cash');
+    $bank = (!empty($data['bank']) && in_array($paymentMode, ['QR', 'Card'], true)) ? trim($data['bank']) : null;
 
     $stmt = mysqli_prepare(
         $conn,
         "INSERT INTO reservations
             (reservation_number, guest_id, room_id, check_in_date, check_out_date, occupancy, currency,
              price_per_night, total_nights, total_price, payment_status, check_in_status, check_out_status, source,
-             booked_via, guest_request, room_plan, payment_mode)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+             booked_via, guest_request, room_plan, payment_mode, bank)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
     );
 
     if (!$stmt) {
@@ -601,7 +614,7 @@ function createQuickGuestReservation($data)
 
     mysqli_stmt_bind_param(
         $stmt,
-        'siissisdidssssssss',
+        'siissisdidsssssssss',
         $reservationNumber,
         $guestId,
         $roomId,
@@ -619,7 +632,8 @@ function createQuickGuestReservation($data)
         $bookedVia,
         $guestRequest,
         $roomPlan,
-        $paymentMode
+        $paymentMode,
+        $bank
     );
 
     if (!mysqli_stmt_execute($stmt)) {
@@ -740,26 +754,32 @@ function updateReservation($reservationId, $data)
             $extraOccupantsPrice += (float) ($occ['price_per_night'] ?? 0);
         }
     }
-    $mainPricePerNight = (float) $data['price_per_night'];
-    $totalPrice = $totalNights * ($mainPricePerNight + $extraOccupantsPrice);
+    $mainPricePerNight = (float) ($data['price_per_night'] ?? 0);
+    $customTotalPrice = (float) ($data['total_payment'] ?? $data['total_price'] ?? 0);
+    if ($customTotalPrice > 0) {
+        $totalPrice = $customTotalPrice;
+    } else {
+        $totalPrice = $totalNights * ($mainPricePerNight + $extraOccupantsPrice);
+    }
 
     $bookedVia = trim($data['booked_via'] ?? 'Walk-in');
     $guestRequest = trim($data['guest_request'] ?? '');
     $roomPlan = trim($data['room_plan'] ?? 'EP');
     $paymentMode = trim($data['payment_mode'] ?? 'Cash');
+    $bank = (!empty($data['bank']) && in_array($paymentMode, ['QR', 'Card'], true)) ? trim($data['bank']) : null;
 
     $stmt = mysqli_prepare(
         $conn,
         "UPDATE reservations
          SET room_id = ?, check_in_date = ?, check_out_date = ?, occupancy = ?, currency = ?,
              price_per_night = ?, total_nights = ?, total_price = ?, payment_status = ?,
-             booked_via = ?, guest_request = ?, room_plan = ?, payment_mode = ?
+             booked_via = ?, guest_request = ?, room_plan = ?, payment_mode = ?, bank = ?
          WHERE id = ?"
     );
 
     mysqli_stmt_bind_param(
         $stmt,
-        'issisdidsssssi',
+        'issisdidssssssi',
         $data['room_id'],
         $data['check_in_date'],
         $data['check_out_date'],
@@ -773,6 +793,7 @@ function updateReservation($reservationId, $data)
         $guestRequest,
         $roomPlan,
         $paymentMode,
+        $bank,
         $reservationId
     );
 

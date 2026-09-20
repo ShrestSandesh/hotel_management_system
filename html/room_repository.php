@@ -61,9 +61,36 @@ function getRoomsByTypeId($roomTypeId)
     return $result ? mysqli_fetch_all($result, MYSQLI_ASSOC) : [];
 }
 
+function syncCurrentGuestsRoomStatus()
+{
+    global $conn;
+
+    if (!$conn) {
+        return;
+    }
+
+    $sql = "SELECT DISTINCT room_id FROM reservations
+            WHERE check_in_date <= CURDATE()
+              AND check_out_date >= CURDATE()
+              AND check_in_status = 'CHECKED IN'
+              AND check_out_status != 'CHECKED OUT'";
+    $result = mysqli_query($conn, $sql);
+
+    if ($result) {
+        while ($row = mysqli_fetch_assoc($result)) {
+            $roomId = (int) $row['room_id'];
+            if ($roomId > 0) {
+                mysqli_query($conn, "UPDATE rooms SET status = 'Occupied' WHERE id = $roomId AND status != 'Occupied'");
+            }
+        }
+    }
+}
+
 function getAllRoomsWithTypes()
 {
     global $conn;
+
+    syncCurrentGuestsRoomStatus();
 
     $result = mysqli_query(
         $conn,
@@ -175,6 +202,8 @@ function updateRoomStatus($id, $status)
 function getRoomStatusCounts()
 {
     global $conn;
+
+    syncCurrentGuestsRoomStatus();
 
     $counts = [
         'Available' => 0,
@@ -337,6 +366,8 @@ function reconcileRoomNumbering()
 function getAllRoomsOrderedByNumber()
 {
     global $conn;
+
+    syncCurrentGuestsRoomStatus();
 
     $result = mysqli_query(
         $conn,

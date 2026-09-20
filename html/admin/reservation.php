@@ -10,6 +10,7 @@ $roomTypes = getRoomTypes();
 $bookedViaOptions = ["Booking.com", "Agoda.com", "Ctrip", "Expedia", "Airbnb", "Walk-in", "Whatsapp", "Website", "Travel Agency", "Referral"];
 $roomPlanOptions = ["EP", "BB", "MAP", "AP"];
 $paymentModeOptions = ["Cash", "Card", "QR"];
+$bankOptions = ["Sulimha Nabil", "Sulimha HBL", "LHC Nabil", "LHC HBL"];
 $errorMessage = '';
 $showPopup = false;
 $reservationSummary = null;
@@ -19,8 +20,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $roomId = (int) ($_POST['room_id'] ?? 0);
     $checkIn = trim($_POST['checkin'] ?? '');
     $checkOut = trim($_POST['checkout'] ?? '');
-    $currency = $_POST['currency'] ?? 'NPR';
     $pricePerNight = (float) ($_POST['price_per_night'] ?? 0);
+    $totalPayment = (float) ($_POST['total_payment'] ?? 0);
     $occupancy = (int) ($_POST['occupancy'] ?? 1);
 
     $guestData = [
@@ -41,9 +42,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $roomPlan = trim($_POST['room_plan'] ?? '');
     $guestRequest = trim($_POST['guest_request'] ?? '');
     $paymentMode = trim($_POST['payment_mode'] ?? '');
+    $bank = trim($_POST['bank'] ?? '');
 
-    if ($roomId <= 0 || $checkIn === '' || $checkOut === '' || $pricePerNight <= 0 || $bookedVia === '' || $roomPlan === '') {
-        $errorMessage = 'Please complete all required room, pricing, Booked via, and Room Plan fields.';
+    if ($roomId <= 0 || $checkIn === '' || $checkOut === '' || ($pricePerNight <= 0 && $totalPayment <= 0) || $bookedVia === '' || $roomPlan === '') {
+        $errorMessage = 'Please complete all required room, pricing (Price Per Night or Total Payment), Booked via, and Room Plan fields.';
+    } elseif (in_array($paymentMode, ['QR', 'Card'], true) && $bank === '') {
+        $errorMessage = 'Please select a Bank for QR or Card payment mode.';
     } elseif (strtotime($checkOut) <= strtotime($checkIn)) {
         $errorMessage = 'Check out date must be after check in date.';
     } elseif ($guestData['first_name'] === '' || $guestData['last_name'] === '' || $guestData['country'] === '') {
@@ -62,11 +66,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'occupancy' => $occupancy,
                 'currency' => $currency,
                 'price_per_night' => $pricePerNight,
+                'total_payment' => $totalPayment,
                 'source' => 'admin',
                 'booked_via' => $bookedVia,
                 'room_plan' => $roomPlan,
                 'guest_request' => $guestRequest,
                 'payment_mode' => $paymentMode,
+                'bank' => $bank,
                 'occupants' => $_POST['occupants'] ?? [],
                 'guest' => $guestData
             ]);
@@ -216,7 +222,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         </div>
                         <div class="input-group">
                             <label>Price Per Night</label>
-                            <input type="number" name="price_per_night" id="pricePerNight" min="0" step="0.01" required>
+                            <input type="number" name="price_per_night" id="pricePerNight" min="0" step="0.01" placeholder="e.g. 2000">
+                        </div>
+                        <div class="input-group">
+                            <label>Total Payment</label>
+                            <input type="number" name="total_payment" id="totalPayment" min="0" step="0.01" placeholder="e.g. 5000">
                         </div>
                         <div class="input-group">
                             <label>Occupancy</label>
@@ -269,10 +279,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         <div class="input-group">
                             <label>Mode of Payment <span
                                     style="color:#94a3b8; font-weight:normal; font-size:12px;"></span></label>
-                            <select name="payment_mode">
+                            <select name="payment_mode" id="adminPaymentMode" onchange="handlePaymentModeChange(this, 'adminBankGroup', 'adminBankSelect')">
                                 <option value="">Select Mode</option>
                                 <?php foreach ($paymentModeOptions as $opt): ?>
                                     <option value="<?= h($opt); ?>"><?= h($opt); ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                        <div class="input-group" id="adminBankGroup" style="display:none;">
+                            <label>Bank <span style="color:#ef4444;">*</span></label>
+                            <select name="bank" id="adminBankSelect">
+                                <option value="">Select Bank</option>
+                                <?php foreach ($bankOptions as $bOpt): ?>
+                                    <option value="<?= h($bOpt); ?>"><?= h($bOpt); ?></option>
                                 <?php endforeach; ?>
                             </select>
                         </div>
@@ -406,29 +425,32 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             const checkinValue = document.getElementById('checkin').value;
             const checkoutValue = document.getElementById('checkout').value;
             const price = parseFloat(document.getElementById('pricePerNight').value) || 0;
+            const customTotal = parseFloat(document.getElementById('totalPayment').value) || 0;
             const currency = document.getElementById('currency').value;
             const daysEl = document.getElementById('days');
             const totalEl = document.getElementById('total');
 
-            if (!checkinValue || !checkoutValue || !price) {
-                daysEl.textContent = '0';
-                totalEl.textContent = '0';
-                updateSummary();
-                return;
+            let diff = 0;
+            if (checkinValue && checkoutValue) {
+                const checkin = new Date(checkinValue);
+                const checkout = new Date(checkoutValue);
+                if (checkout > checkin) {
+                    diff = (checkout - checkin) / (1000 * 60 * 60 * 24);
+                }
             }
+            daysEl.textContent = diff;
 
-            const checkin = new Date(checkinValue);
-            const checkout = new Date(checkoutValue);
-
-            if (checkout > checkin) {
-                const diff = (checkout - checkin) / (1000 * 60 * 60 * 24);
+            if (customTotal > 0) {
+                totalEl.textContent = customTotal.toFixed(2) + ' ' + currency;
+            } else if (diff > 0 && price > 0) {
                 let extraPrice = 0;
                 document.querySelectorAll('.extra-occ-price').forEach(input => {
                     extraPrice += parseFloat(input.value) || 0;
                 });
                 const effectivePrice = price + extraPrice;
-                daysEl.textContent = diff;
                 totalEl.textContent = (diff * effectivePrice).toFixed(2) + ' ' + currency;
+            } else {
+                totalEl.textContent = '0 ' + currency;
             }
 
             updateSummary();
@@ -488,6 +510,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
 
+        function handlePaymentModeChange(selectElem, bankGroupId, bankSelectId) {
+            const val = selectElem ? selectElem.value : '';
+            const container = document.getElementById(bankGroupId);
+            const select = document.getElementById(bankSelectId);
+            if (!container || !select) return;
+
+            if (val === 'QR' || val === 'Card') {
+                container.style.display = 'block';
+                select.required = true;
+            } else {
+                container.style.display = 'none';
+                select.required = false;
+                select.value = '';
+            }
+        }
+
         function handleBookedViaChange(selectElem, containerId, labelId, inputId) {
             const val = selectElem ? selectElem.value : '';
             const container = document.getElementById(containerId);
@@ -511,6 +549,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         document.getElementById('checkout').addEventListener('change', calculate);
         document.getElementById('currency').addEventListener('change', calculate);
         document.getElementById('pricePerNight').addEventListener('input', calculate);
+        document.getElementById('totalPayment').addEventListener('input', calculate);
         document.getElementById('occupancy').addEventListener('change', () => { renderResExtraOccupants(); calculate(); });
     </script>
 </body>

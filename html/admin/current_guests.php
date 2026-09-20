@@ -48,6 +48,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     'occupancy' => (int) ($_POST['occupancy'] ?? 1),
                     'currency' => $_POST['currency'] ?? 'NPR',
                     'price_per_night' => (float) ($_POST['price_per_night'] ?? 0),
+                    'total_payment' => (float) ($_POST['total_payment'] ?? 0),
                     'payment_status' => $_POST['payment_status'] ?? 'UNPAID',
                     'booked_via' => (function() {
                         $bvChannel = trim($_POST['booked_via'] ?? 'Walk-in');
@@ -57,6 +58,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     'room_plan' => trim($_POST['room_plan'] ?? 'EP'),
                     'guest_request' => trim($_POST['guest_request'] ?? ''),
                     'payment_mode' => trim($_POST['payment_mode'] ?? 'Cash'),
+                    'bank' => trim($_POST['bank'] ?? ''),
                     'extra_charges' => $extraCharges,
                     'occupants' => $_POST['occupants'] ?? [],
                     'guest' => [
@@ -97,6 +99,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($action === 'update_status') {
         $reservationId = (int) ($_POST['reservation_id'] ?? 0);
         $selectedStatus = trim($_POST['status'] ?? '');
+        $reservation = getReservationById($reservationId);
+        $roomId = $reservation ? (int) $reservation['room_id'] : 0;
 
         if ($selectedStatus === 'Checked out') {
             $checkInStatus = 'CHECKED IN';
@@ -112,6 +116,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $checkInOk = updateReservationCheckInStatus($reservationId, $checkInStatus);
         $checkOutOk = updateReservationCheckOutStatus($reservationId, $checkOutStatus);
         $ok = $checkInOk && $checkOutOk;
+
+        if ($ok && $roomId > 0) {
+            if ($selectedStatus === 'Checked out') {
+                updateRoomStatus($roomId, 'Dirty');
+            } elseif ($selectedStatus === 'Check in') {
+                updateRoomStatus($roomId, 'Occupied');
+            }
+        }
+
         header('Location: current_guests.php?statusupdated=' . ($ok ? '1' : '0'));
         exit;
     }
@@ -142,6 +155,7 @@ $idTypeOptions = ["Passport", "Citizenship", "National ID", "Driver's License", 
 $bookedViaOptions = ["Booking.com", "Agoda.com", "Ctrip", "Expedia", "Airbnb", "Walk-in", "Whatsapp", "Website", "Travel Agency", "Referral"];
 $roomPlanOptions = ["EP", "BB", "MAP", "AP"];
 $paymentModeOptions = ["Cash", "Card", "QR"];
+$bankOptions = ["Sulimha Nabil", "Sulimha HBL", "LHC Nabil", "LHC HBL"];
 
 $totalUSD = 0.0;
 $totalNPR = 0.0;
@@ -265,6 +279,8 @@ foreach ($guests as $g) {
                                         data-checkin="<?= h($guest['check_in_date']); ?>"
                                         data-checkout="<?= h($guest['check_out_date']); ?>"
                                         data-currency="<?= h($guest['currency']); ?>"
+                                        data-payment-mode="<?= h($guest['payment_mode'] ?? ''); ?>"
+                                        data-bank="<?= h($guest['bank'] ?? ''); ?>"
                                         data-total-price="<?= h($roomTotalPrice); ?>">
                                         <td><?= h($guest['reservation_number']); ?></td>
                                         <td><?= h(trim($guest['first_name'] . ' ' . ($guest['middle_name'] ?? '') . ' ' . $guest['last_name'])); ?>
@@ -368,7 +384,9 @@ foreach ($guests as $g) {
                                 <option value="USD">USD</option>
                             </select></div>
                         <div class="input-group"><label>Price Per Night</label><input type="number" step="0.01"
-                                name="price_per_night" id="editPrice" required></div>
+                                name="price_per_night" id="editPrice" placeholder="e.g. 2000"></div>
+                        <div class="input-group"><label>Total Payment</label><input type="number" step="0.01"
+                                name="total_payment" id="editTotalPrice" placeholder="e.g. 5000"></div>
                         <div class="input-group"><label>Occupancy</label><input type="number" min="1" max="4" name="occupancy"
                                 id="editOccupancy" onchange="renderExtraOccupantsForm('editExtraOccupantsContainer', parseInt(this.value, 10))" required></div>
                         <div class="input-group"><label>Payment Status</label><select name="payment_status"
@@ -403,10 +421,19 @@ foreach ($guests as $g) {
                         </div>
                         <div class="input-group">
                             <label>Mode of Payment</label>
-                            <select name="payment_mode" id="editPaymentMode">
+                            <select name="payment_mode" id="editPaymentMode" onchange="handlePaymentModeChange(this, 'editBankGroup', 'editBankSelect')">
                                 <option value="">Select Mode</option>
                                 <?php foreach ($paymentModeOptions as $opt): ?>
                                     <option value="<?= h($opt); ?>"><?= h($opt); ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                        <div class="input-group" id="editBankGroup" style="display:none;">
+                            <label>Bank <span style="color:#ef4444;">*</span></label>
+                            <select name="bank" id="editBankSelect">
+                                <option value="">Select Bank</option>
+                                <?php foreach ($bankOptions as $bOpt): ?>
+                                    <option value="<?= h($bOpt); ?>"><?= h($bOpt); ?></option>
                                 <?php endforeach; ?>
                             </select>
                         </div>
@@ -508,6 +535,22 @@ foreach ($guests as $g) {
 
         function statusBadgeClass(status) {
             return String(status || '').toLowerCase().replace(/\s+/g, '-');
+        }
+
+        function handlePaymentModeChange(selectElem, bankGroupId, bankSelectId) {
+            const val = selectElem ? selectElem.value : '';
+            const container = document.getElementById(bankGroupId);
+            const select = document.getElementById(bankSelectId);
+            if (!container || !select) return;
+
+            if (val === 'QR' || val === 'Card') {
+                container.style.display = 'block';
+                select.required = true;
+            } else {
+                container.style.display = 'none';
+                select.required = false;
+                select.value = '';
+            }
         }
 
         function handleBookedViaChange(selectElem, containerId, labelId, inputId) {
@@ -698,6 +741,7 @@ foreach ($guests as $g) {
                             ${field('Check-In Date', formatDate(guest.check_in_date))}
                             ${field('Check-Out Date', formatDate(guest.check_out_date))}
                             ${field('Price Per Night', (guest.currency || 'NPR') + ' ' + parseFloat(guest.price_per_night || 0).toFixed(2))}
+                            ${field('Total Payment', (guest.currency || 'NPR') + ' ' + parseFloat(guest.total_price || 0).toFixed(2))}
                             ${field('Occupancy (Guests)', guest.occupancy)}
                         </div>
                     </div>
@@ -708,6 +752,7 @@ foreach ($guests as $g) {
                             ${field('Booked Via', guest.booked_via)}
                             ${field('Room Plan', guest.room_plan)}
                             ${field('Mode of Payment', guest.payment_mode)}
+                            ${field('Bank', guest.bank)}
                         </div>
                         <div class="view-grid single" style="margin-top:10px;">
                             ${field('Guests Request', guest.guest_request)}
@@ -796,7 +841,8 @@ foreach ($guests as $g) {
             document.getElementById('editCheckIn').value = guest.check_in_date || '';
             document.getElementById('editCheckOut').value = guest.check_out_date || '';
             document.getElementById('editCurrency').value = guest.currency || 'NPR';
-            document.getElementById('editPrice').value = guest.price_per_night || '0';
+            document.getElementById('editPrice').value = guest.price_per_night || '';
+            document.getElementById('editTotalPrice').value = guest.total_price || '';
             document.getElementById('editOccupancy').value = guest.occupancy || '1';
             document.getElementById('editPaymentStatus').value = guest.payment_status || 'UNPAID';
             const bookedViaRaw = guest.booked_via || '';
@@ -816,6 +862,8 @@ foreach ($guests as $g) {
             document.getElementById('editRoomPlan').value = guest.room_plan || '';
             document.getElementById('editGuestRequest').value = guest.guest_request || '';
             document.getElementById('editPaymentMode').value = guest.payment_mode || '';
+            handlePaymentModeChange(document.getElementById('editPaymentMode'), 'editBankGroup', 'editBankSelect');
+            document.getElementById('editBankSelect').value = guest.bank || '';
             document.getElementById('editFirstName').value = guest.first_name || '';
             document.getElementById('editMiddleName').value = guest.middle_name || '';
             document.getElementById('editLastName').value = guest.last_name || '';
