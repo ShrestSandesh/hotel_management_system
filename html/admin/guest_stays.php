@@ -59,6 +59,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     'guest_request' => trim($_POST['guest_request'] ?? ''),
                     'payment_mode' => trim($_POST['payment_mode'] ?? 'Cash'),
                     'bank' => trim($_POST['bank'] ?? ''),
+                    'check_in_time' => trim($_POST['check_in_time'] ?? ''),
+                    'check_out_time' => trim($_POST['check_out_time'] ?? ''),
+                    'offer_applied' => trim($_POST['offer_applied'] ?? ''),
                     'extra_charges' => $extraCharges,
                     'occupants' => $_POST['occupants'] ?? [],
                     'guest' => [
@@ -214,6 +217,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'guest_request' => $guestRequest,
                 'payment_mode' => $paymentMode,
                 'bank' => trim($_POST['bank'] ?? ''),
+                'check_in_time' => trim($_POST['check_in_time'] ?? ''),
+                'check_out_time' => trim($_POST['check_out_time'] ?? ''),
+                'offer_applied' => trim($_POST['offer_applied'] ?? ''),
                 'occupants' => $_POST['occupants'] ?? [],
                 'guest' => [
                     'first_name' => $firstName,
@@ -546,10 +552,18 @@ $bankOptions = ["Sulimha Nabil", "Sulimha HBL", "LHC Nabil", "LHC HBL"];
                         </div>
                     </div>
                     <div class="row">
-                        <div class="input-group"><label>Check In</label><input type="date" name="check_in_date"
+                        <div class="input-group"><label>Check In Date</label><input type="date" name="check_in_date"
                                 id="editCheckIn" required></div>
-                        <div class="input-group"><label>Check Out</label><input type="date" name="check_out_date"
+                        <div class="input-group"><label>Check In Time <span style="color:#94a3b8; font-weight:normal; font-size:12px;">(Optional)</span></label><input type="text" name="check_in_time"
+                                id="editCheckInTime" placeholder="e.g. 14:00 or 2 PM"></div>
+                        <div class="input-group"><label>Check Out Date</label><input type="date" name="check_out_date"
                                 id="editCheckOut" required></div>
+                        <div class="input-group"><label>Check Out Time <span style="color:#94a3b8; font-weight:normal; font-size:12px;">(Optional)</span></label><input type="text" name="check_out_time"
+                                id="editCheckOutTime" placeholder="e.g. 11:00 or 12 PM"></div>
+                    </div>
+                    <div class="row">
+                        <div class="input-group"><label>Offer Applied <span style="color:#94a3b8; font-weight:normal; font-size:12px;">(Optional)</span></label><input type="text" name="offer_applied"
+                                id="editOfferApplied" placeholder="e.g. 10% or SUMMER2026"></div>
                     </div>
                     <div class="row">
                         <div class="input-group"><label>Currency</label><select name="currency" id="editCurrency">
@@ -724,8 +738,16 @@ $bankOptions = ["Sulimha Nabil", "Sulimha HBL", "LHC Nabil", "LHC HBL"];
                     <div class="row">
                         <div class="input-group"><label>Check-In Date</label><input type="date" name="check_in_date"
                                 required></div>
+                        <div class="input-group"><label>Check-In Time <span style="color:#94a3b8; font-weight:normal; font-size:12px;">(Optional)</span></label><input type="text" name="check_in_time"
+                                placeholder="e.g. 14:00 or 2 PM"></div>
                         <div class="input-group"><label>Check-Out Date</label><input type="date" name="check_out_date"
                                 required></div>
+                        <div class="input-group"><label>Check-Out Time <span style="color:#94a3b8; font-weight:normal; font-size:12px;">(Optional)</span></label><input type="text" name="check_out_time"
+                                placeholder="e.g. 11:00 or 12 PM"></div>
+                    </div>
+                    <div class="row">
+                        <div class="input-group"><label>Offer Applied <span style="color:#94a3b8; font-weight:normal; font-size:12px;">(Optional)</span></label><input type="text" name="offer_applied"
+                                placeholder="e.g. 10% or SUMMER2026"></div>
                     </div>
                     <div class="row">
                         <div class="input-group">
@@ -1058,7 +1080,10 @@ $bankOptions = ["Sulimha Nabil", "Sulimha HBL", "LHC Nabil", "LHC HBL"];
                             ${field('Room Type', guest.room_type_name)}
                             ${field('Room Number', guest.room_number)}
                             ${field('Check-In Date', formatDate(guest.check_in_date))}
+                            ${field('Check-In Time', guest.check_in_time)}
                             ${field('Check-Out Date', formatDate(guest.check_out_date))}
+                            ${field('Check-Out Time', guest.check_out_time)}
+                            ${field('Offer Applied', guest.offer_applied)}
                             ${field('Price Per Night', (guest.currency || 'NPR') + ' ' + parseFloat(guest.price_per_night || 0).toFixed(2))}
                             ${field('Total Payment', (guest.currency || 'NPR') + ' ' + parseFloat(guest.total_price || 0).toFixed(2))}
                             ${field('Occupancy (Guests)', guest.occupancy)}
@@ -1158,7 +1183,10 @@ $bankOptions = ["Sulimha Nabil", "Sulimha HBL", "LHC Nabil", "LHC HBL"];
 
             document.getElementById('editReservationId').value = guest.reservation_id;
             document.getElementById('editCheckIn').value = guest.check_in_date || '';
+            document.getElementById('editCheckInTime').value = guest.check_in_time || '';
             document.getElementById('editCheckOut').value = guest.check_out_date || '';
+            document.getElementById('editCheckOutTime').value = guest.check_out_time || '';
+            document.getElementById('editOfferApplied').value = guest.offer_applied || '';
             document.getElementById('editCurrency').value = guest.currency || 'NPR';
             document.getElementById('editPrice').value = guest.price_per_night || '';
             document.getElementById('editTotalPrice').value = guest.total_price || '';

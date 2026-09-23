@@ -105,6 +105,9 @@ function ensureDatabaseSchema()
             room_plan VARCHAR(20) NOT NULL DEFAULT 'EP',
             payment_mode VARCHAR(30) NULL DEFAULT 'Cash',
             bank VARCHAR(80) NULL DEFAULT NULL,
+            check_in_time VARCHAR(50) NULL DEFAULT NULL,
+            check_out_time VARCHAR(50) NULL DEFAULT NULL,
+            offer_applied VARCHAR(100) NULL DEFAULT NULL,
             created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
             FOREIGN KEY (guest_id) REFERENCES guests(id) ON DELETE CASCADE,
@@ -186,6 +189,9 @@ function ensureDatabaseSchema()
     ensureColumn('reservations', 'room_plan', "room_plan VARCHAR(20) NOT NULL DEFAULT 'EP'");
     ensureColumn('reservations', 'payment_mode', "payment_mode VARCHAR(30) NULL DEFAULT 'Cash'");
     ensureColumn('reservations', 'bank', "bank VARCHAR(80) NULL DEFAULT NULL");
+    ensureColumn('reservations', 'check_in_time', "check_in_time VARCHAR(50) NULL DEFAULT NULL");
+    ensureColumn('reservations', 'check_out_time', "check_out_time VARCHAR(50) NULL DEFAULT NULL");
+    ensureColumn('reservations', 'offer_applied', "offer_applied VARCHAR(100) NULL DEFAULT NULL");
     ensureColumn('rooms', 'status', "status ENUM('Available','Occupied','Dirty','Out of Order') NOT NULL DEFAULT 'Available'");
 
     seedDefaultData();

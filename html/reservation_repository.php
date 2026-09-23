@@ -182,19 +182,22 @@ function createReservation($data)
     $roomPlan = trim($data['room_plan'] ?? 'EP');
     $paymentMode = trim($data['payment_mode'] ?? 'Cash');
     $bank = (!empty($data['bank']) && in_array($paymentMode, ['QR', 'Card'], true)) ? trim($data['bank']) : null;
+    $checkInTime = isset($data['check_in_time']) && trim((string) $data['check_in_time']) !== '' ? trim((string) $data['check_in_time']) : null;
+    $checkOutTime = isset($data['check_out_time']) && trim((string) $data['check_out_time']) !== '' ? trim((string) $data['check_out_time']) : null;
+    $offerApplied = isset($data['offer_applied']) && trim((string) $data['offer_applied']) !== '' ? trim((string) $data['offer_applied']) : null;
 
     $stmt = mysqli_prepare(
         $conn,
         "INSERT INTO reservations
             (reservation_number, guest_id, room_id, check_in_date, check_out_date, occupancy, currency,
              price_per_night, total_nights, total_price, payment_status, check_in_status, check_out_status, source, user_id,
-             booked_via, guest_request, room_plan, payment_mode, bank)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+             booked_via, guest_request, room_plan, payment_mode, bank, check_in_time, check_out_time, offer_applied)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
     );
 
     mysqli_stmt_bind_param(
         $stmt,
-        'siissisdidssssisssss',
+        'siissisdidssssissssssss',
         $reservationNumber,
         $guestId,
         $data['room_id'],
@@ -214,7 +217,10 @@ function createReservation($data)
         $guestRequest,
         $roomPlan,
         $paymentMode,
-        $bank
+        $bank,
+        $checkInTime,
+        $checkOutTime,
+        $offerApplied
     );
 
     if (!mysqli_stmt_execute($stmt)) {
@@ -361,6 +367,7 @@ function getAllGuestsFromReservations()
         $conn,
         "SELECT r.id AS reservation_id, r.reservation_number, r.check_in_date, r.check_out_date,
                 r.occupancy, r.currency, r.total_price, r.payment_status, r.source, r.created_at, r.booked_via, r.guest_request, r.room_plan, r.payment_mode, r.bank,
+                r.check_in_time, r.check_out_time, r.offer_applied,
                 g.id AS guest_id, g.first_name, g.middle_name, g.last_name, g.country, g.contact_number,
                 g.email, g.address, g.id_type, g.id_number, rm.room_number, rt.name AS room_type_name
          FROM reservations r
@@ -414,6 +421,7 @@ function getCheckedInGuestsFromReservations()
         "SELECT r.id AS reservation_id, r.room_id, r.price_per_night, r.reservation_number, r.check_in_date, r.check_out_date,
                 r.occupancy, r.currency, r.total_price, r.payment_status, r.check_in_status,
                 r.check_out_status, r.source, r.created_at, r.booked_via, r.guest_request, r.room_plan, r.payment_mode, r.bank,
+                r.check_in_time, r.check_out_time, r.offer_applied,
                 g.id AS guest_id, g.first_name, g.middle_name, g.last_name, g.country, g.contact_number,
                 g.email, g.address, g.id_type, g.id_number, rm.room_number, rt.name AS room_type_name
          FROM reservations r
@@ -482,6 +490,7 @@ function getCurrentGuestsFromReservations()
         "SELECT r.id AS reservation_id, r.room_id, r.price_per_night, r.reservation_number, r.check_in_date, r.check_out_date,
                 r.occupancy, r.currency, r.total_price, r.payment_status, r.check_in_status,
                 r.check_out_status, r.source, r.created_at, r.booked_via, r.guest_request, r.room_plan, r.payment_mode, r.bank,
+                r.check_in_time, r.check_out_time, r.offer_applied,
                 g.id AS guest_id, g.first_name, g.middle_name, g.last_name, g.country, g.contact_number,
                 g.email, g.address, g.id_type, g.id_number, rm.room_number, rt.name AS room_type_name
          FROM reservations r
@@ -597,14 +606,17 @@ function createQuickGuestReservation($data)
     $roomPlan = trim($data['room_plan'] ?? 'EP');
     $paymentMode = trim($data['payment_mode'] ?? 'Cash');
     $bank = (!empty($data['bank']) && in_array($paymentMode, ['QR', 'Card'], true)) ? trim($data['bank']) : null;
+    $checkInTime = isset($data['check_in_time']) && trim((string) $data['check_in_time']) !== '' ? trim((string) $data['check_in_time']) : null;
+    $checkOutTime = isset($data['check_out_time']) && trim((string) $data['check_out_time']) !== '' ? trim((string) $data['check_out_time']) : null;
+    $offerApplied = isset($data['offer_applied']) && trim((string) $data['offer_applied']) !== '' ? trim((string) $data['offer_applied']) : null;
 
     $stmt = mysqli_prepare(
         $conn,
         "INSERT INTO reservations
             (reservation_number, guest_id, room_id, check_in_date, check_out_date, occupancy, currency,
              price_per_night, total_nights, total_price, payment_status, check_in_status, check_out_status, source,
-             booked_via, guest_request, room_plan, payment_mode, bank)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+             booked_via, guest_request, room_plan, payment_mode, bank, check_in_time, check_out_time, offer_applied)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
     );
 
     if (!$stmt) {
@@ -614,7 +626,7 @@ function createQuickGuestReservation($data)
 
     mysqli_stmt_bind_param(
         $stmt,
-        'siissisdidsssssssss',
+        'siissisdidssssssssssss',
         $reservationNumber,
         $guestId,
         $roomId,
@@ -633,7 +645,10 @@ function createQuickGuestReservation($data)
         $guestRequest,
         $roomPlan,
         $paymentMode,
-        $bank
+        $bank,
+        $checkInTime,
+        $checkOutTime,
+        $offerApplied
     );
 
     if (!mysqli_stmt_execute($stmt)) {
@@ -767,19 +782,23 @@ function updateReservation($reservationId, $data)
     $roomPlan = trim($data['room_plan'] ?? 'EP');
     $paymentMode = trim($data['payment_mode'] ?? 'Cash');
     $bank = (!empty($data['bank']) && in_array($paymentMode, ['QR', 'Card'], true)) ? trim($data['bank']) : null;
+    $checkInTime = isset($data['check_in_time']) && trim((string) $data['check_in_time']) !== '' ? trim((string) $data['check_in_time']) : null;
+    $checkOutTime = isset($data['check_out_time']) && trim((string) $data['check_out_time']) !== '' ? trim((string) $data['check_out_time']) : null;
+    $offerApplied = isset($data['offer_applied']) && trim((string) $data['offer_applied']) !== '' ? trim((string) $data['offer_applied']) : null;
 
     $stmt = mysqli_prepare(
         $conn,
         "UPDATE reservations
          SET room_id = ?, check_in_date = ?, check_out_date = ?, occupancy = ?, currency = ?,
              price_per_night = ?, total_nights = ?, total_price = ?, payment_status = ?,
-             booked_via = ?, guest_request = ?, room_plan = ?, payment_mode = ?, bank = ?
+             booked_via = ?, guest_request = ?, room_plan = ?, payment_mode = ?, bank = ?,
+             check_in_time = ?, check_out_time = ?, offer_applied = ?
          WHERE id = ?"
     );
 
     mysqli_stmt_bind_param(
         $stmt,
-        'issisdidssssssi',
+        'issisdidsssssssssi',
         $data['room_id'],
         $data['check_in_date'],
         $data['check_out_date'],
@@ -794,6 +813,9 @@ function updateReservation($reservationId, $data)
         $roomPlan,
         $paymentMode,
         $bank,
+        $checkInTime,
+        $checkOutTime,
+        $offerApplied,
         $reservationId
     );
 

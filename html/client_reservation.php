@@ -63,6 +63,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'save_
         exit;
     }
 
+    $checkInTime = trim($_POST['check_in_time'] ?? '');
+    $checkOutTime = trim($_POST['check_out_time'] ?? '');
+    $offerApplied = trim($_POST['offer_applied'] ?? '');
+
     $result = createReservation([
         'room_id' => $roomId,
         'check_in_date' => $checkIn,
@@ -75,6 +79,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'save_
         'room_plan' => $roomPlan,
         'guest_request' => $guestRequest,
         'payment_mode' => $paymentMode,
+        'check_in_time' => $checkInTime,
+        'check_out_time' => $checkOutTime,
+        'offer_applied' => $offerApplied,
         'occupants' => $_POST['occupants'] ?? [],
         'guest' => $guestData,
         'user_id' => $clientUserId
@@ -154,8 +161,18 @@ $paymentModeOptions = ["Cash", "Card", "QR"];
             <div class="client-form-row">
                 <div class="client-input-group"><label for="checkin">Check In Date</label><input type="date"
                         id="checkin" required></div>
+                <div class="client-input-group"><label for="check_in_time">Check In Time <span style="color:#94a3b8; font-weight:normal; font-size:12px;">(Optional)</span></label><input type="text"
+                        id="check_in_time" placeholder="e.g. 14:00 or 2 PM"></div>
                 <div class="client-input-group"><label for="checkout">Check Out Date</label><input type="date"
                         id="checkout" required></div>
+                <div class="client-input-group"><label for="check_out_time">Check Out Time <span style="color:#94a3b8; font-weight:normal; font-size:12px;">(Optional)</span></label><input type="text"
+                        id="check_out_time" placeholder="e.g. 11:00 or 12 PM"></div>
+            </div>
+            <div class="client-form-row">
+                <div class="client-input-group">
+                    <label for="offer_applied">Offer Applied <span style="color:#94a3b8; font-weight:normal; font-size:12px;">(Optional)</span></label>
+                    <input type="text" id="offer_applied" placeholder="e.g. 10% or SUMMER2026">
+                </div>
             </div>
             <div class="client-form-row">
                 <div class="client-input-group">
@@ -380,7 +397,10 @@ $paymentModeOptions = ["Cash", "Card", "QR"];
                 })(),
                 room_plan: document.getElementById('roomPlan').value,
                 guest_request: document.getElementById('guestRequest').value.trim(),
-                payment_mode: document.getElementById('paymentMode').value
+                payment_mode: document.getElementById('paymentMode').value,
+                check_in_time: document.getElementById('check_in_time').value.trim(),
+                check_out_time: document.getElementById('check_out_time').value.trim(),
+                offer_applied: document.getElementById('offer_applied').value.trim()
             });
 
             const occCount = parseInt(document.getElementById('occupancy').value || '1', 10);

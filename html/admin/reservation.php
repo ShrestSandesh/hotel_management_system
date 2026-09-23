@@ -45,6 +45,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $paymentMode = trim($_POST['payment_mode'] ?? '');
     $bank = trim($_POST['bank'] ?? '');
 
+    $checkInTime = trim($_POST['check_in_time'] ?? '');
+    $checkOutTime = trim($_POST['check_out_time'] ?? '');
+    $offerApplied = trim($_POST['offer_applied'] ?? '');
+
     if ($roomId <= 0 || $checkIn === '' || $checkOut === '' || ($pricePerNight <= 0 && $totalPayment <= 0) || $bookedVia === '' || $roomPlan === '') {
         $errorMessage = 'Please complete all required room, pricing (Price Per Night or Total Payment), Booked via, and Room Plan fields.';
     } elseif (in_array($paymentMode, ['QR', 'Card'], true) && $bank === '') {
@@ -74,6 +78,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'guest_request' => $guestRequest,
                 'payment_mode' => $paymentMode,
                 'bank' => $bank,
+                'check_in_time' => $checkInTime,
+                'check_out_time' => $checkOutTime,
+                'offer_applied' => $offerApplied,
                 'occupants' => $_POST['occupants'] ?? [],
                 'guest' => $guestData
             ]);
@@ -148,12 +155,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             <td><?= h($reservationSummary['occupancy']); ?></td>
                         </tr>
                         <tr>
-                            <td>Check In</td>
+                            <td>Check In Date</td>
                             <td><?= h($reservationSummary['check_in_date']); ?></td>
                         </tr>
                         <tr>
-                            <td>Check Out</td>
+                            <td>Check In Time</td>
+                            <td><?= h($reservationSummary['check_in_time'] ?: 'N/A'); ?></td>
+                        </tr>
+                        <tr>
+                            <td>Check Out Date</td>
                             <td><?= h($reservationSummary['check_out_date']); ?></td>
+                        </tr>
+                        <tr>
+                            <td>Check Out Time</td>
+                            <td><?= h($reservationSummary['check_out_time'] ?: 'N/A'); ?></td>
+                        </tr>
+                        <tr>
+                            <td>Offer Applied</td>
+                            <td><?= h($reservationSummary['offer_applied'] ?: 'None'); ?></td>
                         </tr>
                         <tr>
                             <td>Total Nights</td>
@@ -244,8 +263,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             <input type="date" name="checkin" id="checkin" required>
                         </div>
                         <div class="input-group">
+                            <label>Check In Time <span style="color:#94a3b8; font-weight:normal; font-size:12px;">(Optional)</span></label>
+                            <input type="text" name="check_in_time" id="check_in_time" placeholder="e.g. 14:00 or 2 PM">
+                        </div>
+                        <div class="input-group">
                             <label>Check Out Date</label>
                             <input type="date" name="checkout" id="checkout" required>
+                        </div>
+                        <div class="input-group">
+                            <label>Check Out Time <span style="color:#94a3b8; font-weight:normal; font-size:12px;">(Optional)</span></label>
+                            <input type="text" name="check_out_time" id="check_out_time" placeholder="e.g. 11:00 or 12 PM">
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="input-group">
+                            <label>Offer Applied <span style="color:#94a3b8; font-weight:normal; font-size:12px;">(Optional)</span></label>
+                            <input type="text" name="offer_applied" id="offer_applied" placeholder="e.g. 10% or SUMMER2026">
                         </div>
                     </div>
                     <div class="row">
