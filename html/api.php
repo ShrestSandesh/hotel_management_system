@@ -60,6 +60,9 @@ switch ($action) {
         $firstName = trim($_POST['first_name'] ?? '');
         $middleName = trim($_POST['middle_name'] ?? '');
         $lastName = trim($_POST['last_name'] ?? '');
+        $pricePerNightInput = trim($_POST['price_per_night'] ?? '');
+        $currency = trim($_POST['currency'] ?? 'NPR');
+        $bookedVia = trim($_POST['booked_via'] ?? 'Walk-in');
 
         if ($roomId <= 0 || $checkIn === '' || $checkOut === '' || $firstName === '') {
             echo json_encode(['success' => false, 'message' => 'First Name, Room, Check-In and Check-Out dates are required.']);
@@ -76,16 +79,20 @@ switch ($action) {
         }
 
         $room = getRoomById($roomId);
-        $pricePerNight = (float) ($room['rate_per_night'] ?? 0);
+        if ($pricePerNightInput !== '' && is_numeric($pricePerNightInput)) {
+            $pricePerNight = (float) $pricePerNightInput;
+        } else {
+            $pricePerNight = (float) ($room['rate_per_night'] ?? 0);
+        }
 
         $result = createQuickGuestReservation([
             'room_id' => $roomId,
             'check_in_date' => $checkIn,
             'check_out_date' => $checkOut,
             'occupancy' => 1,
-            'currency' => 'NPR',
+            'currency' => $currency,
             'price_per_night' => $pricePerNight,
-            'booked_via' => 'Walk-in',
+            'booked_via' => $bookedVia,
             'room_plan' => 'EP',
             'payment_mode' => 'Cash',
             'guest' => [

@@ -587,12 +587,12 @@ function createQuickGuestReservation($data)
             $extraOccupantsPrice += (float) ($occ['price_per_night'] ?? 0);
         }
     }
-    $mainPricePerNight = (float) ($data['price_per_night'] ?? 0);
+    $pricePerNight = (float) ($data['price_per_night'] ?? 0);
     $customTotalPrice = (float) ($data['total_payment'] ?? $data['total_price'] ?? 0);
     if ($customTotalPrice > 0) {
         $totalPrice = $customTotalPrice;
     } else {
-        $totalPrice = $totalNights * ($mainPricePerNight + $extraOccupantsPrice);
+        $totalPrice = $totalNights * ($pricePerNight + $extraOccupantsPrice);
     }
     $currency = $data['currency'] ?? 'NPR';
     $occupancy = (int) ($data['occupancy'] ?? 1);

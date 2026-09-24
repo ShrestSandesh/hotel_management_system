@@ -517,7 +517,10 @@ $todayStr = date('Y-m-d');
             margin-bottom: 5px;
         }
 
-        .drawer-field-group input {
+        .drawer-field-group input,
+        .drawer-field-group select,
+        .drawer-select,
+        .drawer-date-input {
             width: 100%;
             padding: 9px 12px;
             font-size: 13.5px;
@@ -525,9 +528,13 @@ $todayStr = date('Y-m-d');
             border-radius: 8px;
             box-sizing: border-box;
             font-family: inherit;
+            background-color: #ffffff;
         }
 
-        .drawer-field-group input:focus {
+        .drawer-field-group input:focus,
+        .drawer-field-group select:focus,
+        .drawer-select:focus,
+        .drawer-date-input:focus {
             outline: none;
             border-color: #0f766e;
             box-shadow: 0 0 0 3px rgba(15, 118, 110, 0.15);
@@ -714,6 +721,7 @@ $todayStr = date('Y-m-d');
                                                 data-room-id="<?= h($room['id']); ?>"
                                                 data-room-number="<?= h($room['room_number']); ?>"
                                                 data-room-name="<?= h($room['room_type_name']); ?>"
+                                                data-rate-per-night="<?= h($room['rate_per_night']); ?>"
                                                 data-date="<?= $dateStr; ?>"></td>
                                         <?php endif; ?>
                                     <?php endfor; ?>
@@ -752,10 +760,16 @@ $todayStr = date('Y-m-d');
                 
                 <div class="drawer-section">
                     <div class="drawer-label">Dates</div>
-                    <div class="drawer-dates-box" id="drawerDatesBox">
-                        <span id="drawerCheckInDisplay">10/02/2026</span>
-                        <i class="fas fa-arrow-right" style="color:#94a3b8; font-size:12px;"></i>
-                        <span id="drawerCheckOutDisplay">10/03/2026</span>
+                    <div class="drawer-dates-inputs" style="display:flex; align-items:center; gap:8px; margin-bottom:6px;">
+                        <div style="flex:1;">
+                            <label style="display:block; font-size:11px; font-weight:700; color:#64748b; margin-bottom:3px;">Check-In</label>
+                            <input type="date" id="quickCheckInDate" class="drawer-date-input" onchange="onQuickDatesChanged()">
+                        </div>
+                        <span style="color:#94a3b8; font-size:12px; margin-top:16px;"><i class="fas fa-arrow-right"></i></span>
+                        <div style="flex:1;">
+                            <label style="display:block; font-size:11px; font-weight:700; color:#64748b; margin-bottom:3px;">Check-Out</label>
+                            <input type="date" id="quickCheckOutDate" class="drawer-date-input" onchange="onQuickDatesChanged()">
+                        </div>
                     </div>
                     <div class="drawer-nights-sub" id="drawerNightsSub">1 night stay</div>
                 </div>
@@ -786,6 +800,33 @@ $todayStr = date('Y-m-d');
                         <div class="drawer-field-group">
                             <label>Last Name <span style="color:#ef4444;">*</span></label>
                             <input type="text" id="quickLastName" placeholder="Last Name">
+                        </div>
+
+                        <div style="display:flex; gap:10px; margin-top:12px;">
+                            <div class="drawer-field-group" style="flex:2;">
+                                <label>Price Per Night</label>
+                                <input type="number" step="0.01" min="0" id="quickPricePerNight" placeholder="0.00">
+                            </div>
+                            <div class="drawer-field-group" style="flex:1;">
+                                <label>Currency</label>
+                                <select id="quickCurrency" class="drawer-select">
+                                    <option value="NPR" selected>NPR</option>
+                                    <option value="USD">USD</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="drawer-field-group" style="margin-top:12px;">
+                            <label>Booked Via</label>
+                            <select id="quickBookedVia" class="drawer-select">
+                                <option value="Walk-in" selected>Walk-in</option>
+                                <option value="Booking.com">Booking.com</option>
+                                <option value="Airbnb">Airbnb</option>
+                                <option value="Agoda">Agoda</option>
+                                <option value="Expedia">Expedia</option>
+                                <option value="Direct / Website">Direct / Website</option>
+                                <option value="Other">Other</option>
+                            </select>
                         </div>
                     </div>
                 </div>
@@ -856,14 +897,28 @@ $todayStr = date('Y-m-d');
             return `${yyyy}-${mm}-${dd}`;
         }
 
-        function formatDateDisplay(dateStr) {
-            if (!dateStr) return '';
-            const d = new Date(dateStr + 'T00:00:00');
-            if (isNaN(d.getTime())) return dateStr;
-            const mm = String(d.getMonth() + 1).padStart(2, '0');
-            const dd = String(d.getDate()).padStart(2, '0');
-            const yyyy = d.getFullYear();
-            return `${mm}/${dd}/${yyyy}`;
+        function onQuickDatesChanged() {
+            const inVal = document.getElementById('quickCheckInDate').value;
+            const outVal = document.getElementById('quickCheckOutDate').value;
+            const nightsSub = document.getElementById('drawerNightsSub');
+            if (!inVal || !outVal) {
+                nightsSub.textContent = 'Please select valid dates';
+                nightsSub.style.color = '#ef4444';
+                return;
+            }
+
+            const dIn = new Date(inVal + 'T00:00:00');
+            const dOut = new Date(outVal + 'T00:00:00');
+            const diffTime = dOut - dIn;
+            const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
+
+            if (isNaN(diffDays) || diffDays <= 0) {
+                nightsSub.textContent = 'Invalid range (check-out must be after check-in)';
+                nightsSub.style.color = '#ef4444';
+            } else {
+                nightsSub.textContent = `${diffDays} night${diffDays > 1 ? 's' : ''} stay`;
+                nightsSub.style.color = '#64748b';
+            }
         }
 
         function toggleDrawerAvailabilityMode() {
@@ -890,14 +945,14 @@ $todayStr = date('Y-m-d');
             const roomId = firstCell.dataset.roomId;
             const roomNo = firstCell.dataset.roomNumber;
             const roomName = firstCell.dataset.roomName;
+            const ratePerNight = firstCell.dataset.ratePerNight || '0';
             const checkInDate = firstCell.dataset.date;
             const checkOutDate = addDaysDateStr(lastCell.dataset.date, 1);
-            const totalNights = cells.length;
 
             document.getElementById('drawerRoomName').textContent = `${roomName} (${roomNo})`;
-            document.getElementById('drawerCheckInDisplay').textContent = formatDateDisplay(checkInDate);
-            document.getElementById('drawerCheckOutDisplay').textContent = formatDateDisplay(checkOutDate);
-            document.getElementById('drawerNightsSub').textContent = `${totalNights} night${totalNights > 1 ? 's' : ''} stay`;
+            document.getElementById('quickCheckInDate').value = checkInDate;
+            document.getElementById('quickCheckOutDate').value = checkOutDate;
+            onQuickDatesChanged();
 
             document.getElementById('drawerVacantFormGroup').style.display = 'block';
             document.getElementById('drawerBookedInfoGroup').style.display = 'none';
@@ -907,6 +962,9 @@ $todayStr = date('Y-m-d');
             document.getElementById('quickFirstName').value = '';
             document.getElementById('quickMiddleName').value = '';
             document.getElementById('quickLastName').value = '';
+            document.getElementById('quickPricePerNight').value = parseFloat(ratePerNight) > 0 ? parseFloat(ratePerNight) : '';
+            document.getElementById('quickCurrency').value = 'NPR';
+            document.getElementById('quickBookedVia').value = 'Walk-in';
 
             document.getElementById('btnDrawerSave').style.display = 'inline-block';
             document.getElementById('btnDrawerMakeAvailable').style.display = 'none';
@@ -937,15 +995,11 @@ $todayStr = date('Y-m-d');
             const roomName = cell.dataset.roomName;
             const checkInDate = cell.dataset.checkin;
             const checkOutDate = cell.dataset.checkout;
-            
-            const startD = new Date(checkInDate + 'T00:00:00');
-            const endD = new Date(checkOutDate + 'T00:00:00');
-            const totalNights = Math.max(1, Math.round((endD - startD) / (1000 * 60 * 60 * 24)));
 
             document.getElementById('drawerRoomName').textContent = `${roomName} (${roomNo})`;
-            document.getElementById('drawerCheckInDisplay').textContent = formatDateDisplay(checkInDate);
-            document.getElementById('drawerCheckOutDisplay').textContent = formatDateDisplay(checkOutDate);
-            document.getElementById('drawerNightsSub').textContent = `${totalNights} night${totalNights > 1 ? 's' : ''} stay`;
+            document.getElementById('quickCheckInDate').value = checkInDate || '';
+            document.getElementById('quickCheckOutDate').value = checkOutDate || '';
+            onQuickDatesChanged();
 
             document.getElementById('drawerVacantFormGroup').style.display = 'none';
             document.getElementById('drawerBookedInfoGroup').style.display = 'block';
@@ -979,9 +1033,26 @@ $todayStr = date('Y-m-d');
                     return;
                 }
 
+                const checkIn = document.getElementById('quickCheckInDate').value;
+                const checkOut = document.getElementById('quickCheckOutDate').value;
                 const fName = document.getElementById('quickFirstName').value.trim();
                 const mName = document.getElementById('quickMiddleName').value.trim();
                 const lName = document.getElementById('quickLastName').value.trim();
+                const pricePerNight = document.getElementById('quickPricePerNight').value.trim();
+                const currency = document.getElementById('quickCurrency').value;
+                const bookedVia = document.getElementById('quickBookedVia').value;
+
+                if (!checkIn || !checkOut) {
+                    alert('Please select valid Check-In and Check-Out dates.');
+                    return;
+                }
+
+                const dIn = new Date(checkIn + 'T00:00:00');
+                const dOut = new Date(checkOut + 'T00:00:00');
+                if (dOut <= dIn) {
+                    alert('Check-out date must be after check-in date.');
+                    return;
+                }
 
                 if (!fName) {
                     alert('Please enter at least First Name to book/block the room.');
@@ -992,16 +1063,19 @@ $todayStr = date('Y-m-d');
                 if (selectedCells.length === 0) return;
 
                 const firstCell = selectedCells[0];
-                const lastCell = selectedCells[selectedCells.length - 1];
+                const roomId = firstCell.dataset.roomId;
 
                 const body = new FormData();
                 body.append('action', 'calendar_quick_book');
-                body.append('room_id', firstCell.dataset.roomId);
-                body.append('check_in_date', firstCell.dataset.date);
-                body.append('check_out_date', addDaysDateStr(lastCell.dataset.date, 1));
+                body.append('room_id', roomId);
+                body.append('check_in_date', checkIn);
+                body.append('check_out_date', checkOut);
                 body.append('first_name', fName);
                 body.append('middle_name', mName);
                 body.append('last_name', lName);
+                body.append('price_per_night', pricePerNight);
+                body.append('currency', currency);
+                body.append('booked_via', bookedVia);
 
                 try {
                     const res = await fetch('../api.php', { method: 'POST', body });
@@ -1012,20 +1086,29 @@ $todayStr = date('Y-m-d');
                         return;
                     }
 
-                    // Dynamically update cells to booked state
+                    // Dynamically update cells to booked state across grid row
                     const resId = data.reservation_id;
                     const resNum = data.reservation_number;
                     const guestFullName = [fName, mName, lName].filter(Boolean).join(' ');
 
-                    selectedCells.forEach(cell => {
-                        cell.className = 'grid-cell cell-booked';
-                        cell.dataset.reservationId = resId;
-                        cell.dataset.reservationNumber = resNum;
-                        cell.dataset.guestName = guestFullName;
-                        cell.dataset.checkin = firstCell.dataset.date;
-                        cell.dataset.checkout = addDaysDateStr(lastCell.dataset.date, 1);
-                        cell.dataset.tooltip = `${resNum} - ${guestFullName}`;
-                    });
+                    const roomRow = document.querySelector(`tr.room-row[data-room-id="${roomId}"]`);
+                    if (roomRow) {
+                        const allCells = roomRow.querySelectorAll('.grid-cell');
+                        allCells.forEach(cell => {
+                            const cellDate = cell.dataset.date;
+                            if (cellDate >= checkIn && cellDate < checkOut) {
+                                cell.className = 'grid-cell cell-booked';
+                                cell.dataset.reservationId = resId;
+                                cell.dataset.reservationNumber = resNum;
+                                cell.dataset.guestName = guestFullName;
+                                cell.dataset.checkin = checkIn;
+                                cell.dataset.checkout = checkOut;
+                                cell.dataset.totalPrice = data.total_price || 0;
+                                cell.dataset.currency = currency;
+                                cell.dataset.tooltip = `${resNum} - ${guestFullName}`;
+                            }
+                        });
+                    }
 
                     closeSideDrawer();
                 } catch(e) {
