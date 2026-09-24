@@ -35,7 +35,7 @@ $reservations = getReservationsForDateRange($startDate, $endDate);
 
 // Map booked dates per room for quick O(1) lookup
 // A room is booked on date D if check_in_date <= D and check_out_date > D
-$bookingGrid = []; // [room_id][date_str] = true
+$bookingGrid = []; // [room_id][date_str] = [...]
 foreach ($reservations as $res) {
     $rId = (int) $res['room_id'];
     $cIn = new DateTime($res['check_in_date']);
@@ -48,8 +48,17 @@ foreach ($reservations as $res) {
             $bookingGrid[$rId] = [];
         }
         $bookingGrid[$rId][$dateStr] = [
+            'reservation_id' => $res['id'],
             'reservation_number' => $res['reservation_number'],
-            'guest_name' => trim($res['first_name'] . ' ' . $res['last_name'])
+            'guest_name' => trim(($res['first_name'] ?? '') . ' ' . ($res['middle_name'] ?? '') . ' ' . ($res['last_name'] ?? '')),
+            'first_name' => $res['first_name'] ?? '',
+            'middle_name' => $res['middle_name'] ?? '',
+            'last_name' => $res['last_name'] ?? '',
+            'check_in_date' => $res['check_in_date'],
+            'check_out_date' => $res['check_out_date'],
+            'total_price' => $res['total_price'] ?? 0,
+            'currency' => $res['currency'] ?? 'NPR',
+            'payment_status' => $res['payment_status'] ?? 'UNPAID'
         ];
         $cur->modify('+1 day');
     }
@@ -81,6 +90,12 @@ $todayStr = date('Y-m-d');
     <script src="https://kit.fontawesome.com/8aab9e126a.js" crossorigin="anonymous"></script>
     <link rel="stylesheet" href="./admin_style.css?v=20260714">
     <style>
+        body, body.page-calendar {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif !important;
+            background: #f3f6fb;
+            color: #1f2937;
+        }
+
         .calendar-page-header {
             display: flex;
             align-items: center;
@@ -105,6 +120,7 @@ $todayStr = date('Y-m-d');
             background: #fff;
             color: #1e293b;
             cursor: pointer;
+            font-family: inherit;
         }
 
         .calendar-controls .btn-nav {
@@ -121,6 +137,7 @@ $todayStr = date('Y-m-d');
             justify-content: center;
             gap: 6px;
             transition: all 0.2s ease;
+            font-family: inherit;
         }
 
         .calendar-controls .btn-nav:hover {
@@ -137,6 +154,7 @@ $todayStr = date('Y-m-d');
             font-weight: 700;
             cursor: pointer;
             text-decoration: none;
+            font-family: inherit;
         }
 
         .calendar-controls .btn-today:hover {
@@ -164,6 +182,7 @@ $todayStr = date('Y-m-d');
             border-spacing: 0;
             width: 100%;
             font-size: 13px;
+            font-family: inherit;
         }
 
         .calendar-table th,
@@ -202,6 +221,7 @@ $todayStr = date('Y-m-d');
             border: 1px solid #cbd5e1;
             border-radius: 6px;
             box-sizing: border-box;
+            font-family: inherit;
         }
 
         .room-cell {
@@ -276,6 +296,23 @@ $todayStr = date('Y-m-d');
             vertical-align: middle;
             position: relative;
             background: #ffffff;
+            user-select: none;
+            transition: background 0.15s ease, border-color 0.15s ease;
+        }
+
+        .grid-cell.cell-available {
+            cursor: pointer;
+        }
+
+        .grid-cell.cell-available:hover {
+            background-color: #f0f9ff;
+            border: 2px solid #0284c7 !important;
+        }
+
+        .grid-cell.cell-selected {
+            background-color: #e0f2fe !important;
+            border: 2px solid #0284c7 !important;
+            z-index: 5;
         }
 
         /* Booked cell styling: Light grey shaded background + diagonal line pattern */
@@ -283,6 +320,10 @@ $todayStr = date('Y-m-d');
             background-color: #f1f5f9;
             background-image: linear-gradient(to top right, transparent calc(50% - 1px), #cbd5e1 50%, transparent calc(50% + 1px));
             cursor: pointer;
+        }
+
+        .grid-cell.cell-booked:hover {
+            border: 2px solid #64748b !important;
         }
 
         .grid-cell.cell-booked:hover::after {
@@ -337,6 +378,245 @@ $todayStr = date('Y-m-d');
             background-image: linear-gradient(to top right, transparent calc(50% - 1px), #cbd5e1 50%, transparent calc(50% + 1px));
             border-radius: 4px;
         }
+
+        /* ===== AIRBNB STYLE SIDE DRAWER ===== */
+        .airbnb-drawer-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background: rgba(15, 23, 42, 0.35);
+            z-index: 2000;
+            display: none;
+            justify-content: flex-end;
+            backdrop-filter: blur(2px);
+        }
+
+        .airbnb-drawer {
+            width: min(400px, 92vw);
+            height: 100%;
+            background: #ffffff;
+            box-shadow: -6px 0 28px rgba(0,0,0,0.15);
+            display: flex;
+            flex-direction: column;
+            animation: slideInRight 0.22s ease-out;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        @keyframes slideInRight {
+            from { transform: translateX(100%); }
+            to { transform: translateX(0); }
+        }
+
+        .drawer-header {
+            padding: 18px 24px;
+            border-bottom: 1px solid #e2e8f0;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .drawer-close-btn {
+            background: none;
+            border: none;
+            font-size: 24px;
+            color: #64748b;
+            cursor: pointer;
+            line-height: 1;
+            padding: 0 4px;
+        }
+        .drawer-close-btn:hover { color: #0f172a; }
+
+        .drawer-header-title {
+            font-size: 16px;
+            font-weight: 800;
+            color: #0f172a;
+        }
+
+        .drawer-body {
+            padding: 22px 24px;
+            flex: 1;
+            overflow-y: auto;
+        }
+
+        .drawer-section {
+            margin-bottom: 18px;
+        }
+
+        .drawer-label {
+            font-size: 11.5px;
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: #64748b;
+            margin-bottom: 6px;
+        }
+
+        .drawer-room-name {
+            font-size: 16px;
+            font-weight: 800;
+            color: #0f172a;
+        }
+
+        .drawer-dates-box {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px 16px;
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 10px;
+            font-size: 14px;
+            font-weight: 700;
+            color: #1e293b;
+        }
+
+        .drawer-nights-sub {
+            font-size: 12.5px;
+            color: #64748b;
+            font-weight: 600;
+            margin-top: 4px;
+        }
+
+        .drawer-radio-group {
+            display: flex;
+            gap: 12px;
+        }
+
+        .drawer-radio-label {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 12px;
+            border: 1px solid #cbd5e1;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 13.5px;
+            font-weight: 700;
+            color: #334155;
+            transition: all 0.15s ease;
+        }
+
+        .drawer-radio-label:has(input:checked) {
+            border-color: #0f766e;
+            background: #f0fdf4;
+            color: #0f766e;
+        }
+
+        .drawer-field-group {
+            margin-bottom: 14px;
+        }
+
+        .drawer-field-group label {
+            display: block;
+            font-size: 12.5px;
+            font-weight: 700;
+            color: #334155;
+            margin-bottom: 5px;
+        }
+
+        .drawer-field-group input {
+            width: 100%;
+            padding: 9px 12px;
+            font-size: 13.5px;
+            border: 1px solid #cbd5e1;
+            border-radius: 8px;
+            box-sizing: border-box;
+            font-family: inherit;
+        }
+
+        .drawer-field-group input:focus {
+            outline: none;
+            border-color: #0f766e;
+            box-shadow: 0 0 0 3px rgba(15, 118, 110, 0.15);
+        }
+
+        .drawer-status-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 12px;
+            border-radius: 999px;
+            font-size: 12px;
+            font-weight: 800;
+        }
+
+        .drawer-status-pill.booked {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+
+        .drawer-info-card {
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 10px;
+            padding: 14px;
+        }
+
+        .drawer-info-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 6px 0;
+            font-size: 13px;
+            border-bottom: 1px dashed #e2e8f0;
+        }
+
+        .drawer-info-row:last-child { border-bottom: none; }
+        .drawer-info-row label { color: #64748b; font-weight: 600; }
+        .drawer-info-row span { color: #0f172a; font-weight: 700; }
+
+        .drawer-footer {
+            padding: 16px 24px;
+            border-top: 1px solid #e2e8f0;
+            background: #ffffff;
+            display: flex;
+            gap: 12px;
+        }
+
+        .drawer-btn-secondary {
+            background: #f1f5f9;
+            color: #475569;
+            border: 1px solid #cbd5e1;
+            padding: 10px 16px;
+            border-radius: 8px;
+            font-weight: 700;
+            font-size: 13.5px;
+            cursor: pointer;
+            font-family: inherit;
+        }
+        .drawer-btn-secondary:hover { background: #e2e8f0; }
+
+        .drawer-btn-primary {
+            flex: 1;
+            background: #0f766e;
+            color: #ffffff;
+            border: none;
+            padding: 10px 18px;
+            border-radius: 8px;
+            font-weight: 700;
+            font-size: 13.5px;
+            cursor: pointer;
+            transition: background 0.15s ease;
+            font-family: inherit;
+        }
+        .drawer-btn-primary:hover { background: #0d9488; }
+
+        .drawer-btn-danger {
+            flex: 1;
+            background: #dc2626;
+            color: #ffffff;
+            border: none;
+            padding: 10px 18px;
+            border-radius: 8px;
+            font-weight: 700;
+            font-size: 13.5px;
+            cursor: pointer;
+            transition: background 0.15s ease;
+            font-family: inherit;
+        }
+        .drawer-btn-danger:hover { background: #b91c1c; }
     </style>
 </head>
 
@@ -402,7 +682,7 @@ $todayStr = date('Y-m-d');
                         </thead>
                         <tbody id="roomsTableBody">
                             <?php foreach ($rooms as $room): ?>
-                                <tr class="room-row" data-room-number="<?= h($room['room_number']); ?>" data-room-type="<?= h(strtolower($room['room_type_name'])); ?>">
+                                <tr class="room-row" data-room-id="<?= h($room['id']); ?>" data-room-number="<?= h($room['room_number']); ?>" data-room-type="<?= h(strtolower($room['room_type_name'])); ?>" data-room-name="<?= h($room['room_type_name']); ?>">
                                     <td class="room-cell">
                                         <div class="room-title"><?= h($room['room_type_name']); ?></div>
                                         <div class="room-number-sub"><?= h($room['room_number']); ?></div>
@@ -413,9 +693,28 @@ $todayStr = date('Y-m-d');
                                         $booking = $bookingGrid[$room['id']][$dateStr] ?? null;
                                         ?>
                                         <?php if ($booking): ?>
-                                            <td class="grid-cell cell-booked" data-tooltip="<?= h($booking['reservation_number'] . ' - ' . $booking['guest_name']); ?>"></td>
+                                            <td class="grid-cell cell-booked"
+                                                data-room-id="<?= h($room['id']); ?>"
+                                                data-room-number="<?= h($room['room_number']); ?>"
+                                                data-room-name="<?= h($room['room_type_name']); ?>"
+                                                data-date="<?= $dateStr; ?>"
+                                                data-reservation-id="<?= h($booking['reservation_id']); ?>"
+                                                data-reservation-number="<?= h($booking['reservation_number']); ?>"
+                                                data-guest-name="<?= h($booking['guest_name']); ?>"
+                                                data-first-name="<?= h($booking['first_name']); ?>"
+                                                data-middle-name="<?= h($booking['middle_name']); ?>"
+                                                data-last-name="<?= h($booking['last_name']); ?>"
+                                                data-checkin="<?= h($booking['check_in_date']); ?>"
+                                                data-checkout="<?= h($booking['check_out_date']); ?>"
+                                                data-total-price="<?= h($booking['total_price']); ?>"
+                                                data-currency="<?= h($booking['currency']); ?>"
+                                                data-tooltip="<?= h($booking['reservation_number'] . ' - ' . $booking['guest_name']); ?>"></td>
                                         <?php else: ?>
-                                            <td class="grid-cell cell-available"></td>
+                                            <td class="grid-cell cell-available"
+                                                data-room-id="<?= h($room['id']); ?>"
+                                                data-room-number="<?= h($room['room_number']); ?>"
+                                                data-room-name="<?= h($room['room_type_name']); ?>"
+                                                data-date="<?= $dateStr; ?>"></td>
                                         <?php endif; ?>
                                     <?php endfor; ?>
                                 </tr>
@@ -438,8 +737,90 @@ $todayStr = date('Y-m-d');
         </div>
     </div>
 
+    <!-- AIRBNB STYLE SIDE DRAWER -->
+    <div class="airbnb-drawer-overlay" id="airbnbDrawerOverlay">
+        <div class="airbnb-drawer" id="airbnbDrawer">
+            <div class="drawer-header">
+                <span class="drawer-header-title">Selected dates</span>
+                <button type="button" class="drawer-close-btn" onclick="closeSideDrawer()">×</button>
+            </div>
+            <div class="drawer-body">
+                <div class="drawer-section">
+                    <div class="drawer-label">Selected Listing</div>
+                    <div class="drawer-room-name" id="drawerRoomName">Room 105 - Heritage Twin</div>
+                </div>
+                
+                <div class="drawer-section">
+                    <div class="drawer-label">Dates</div>
+                    <div class="drawer-dates-box" id="drawerDatesBox">
+                        <span id="drawerCheckInDisplay">10/02/2026</span>
+                        <i class="fas fa-arrow-right" style="color:#94a3b8; font-size:12px;"></i>
+                        <span id="drawerCheckOutDisplay">10/03/2026</span>
+                    </div>
+                    <div class="drawer-nights-sub" id="drawerNightsSub">1 night stay</div>
+                </div>
+
+                <!-- Mode 1: Booking Form (Vacant Slot) -->
+                <div id="drawerVacantFormGroup">
+                    <div class="drawer-label">Availability</div>
+                    <div class="drawer-radio-group">
+                        <label class="drawer-radio-label">
+                            <input type="radio" name="drawerAvailability" value="Available" id="radioAvailable" onchange="toggleDrawerAvailabilityMode()">
+                            <span>Available</span>
+                        </label>
+                        <label class="drawer-radio-label">
+                            <input type="radio" name="drawerAvailability" value="Blocked" id="radioBlocked" checked onchange="toggleDrawerAvailabilityMode()">
+                            <span>Booked</span>
+                        </label>
+                    </div>
+
+                    <div id="drawerGuestDetailsFields" style="margin-top:18px;">
+                        <div class="drawer-field-group">
+                            <label>First Name <span style="color:#ef4444;">*</span></label>
+                            <input type="text" id="quickFirstName" placeholder="First Name">
+                        </div>
+                        <div class="drawer-field-group">
+                            <label>Middle Name <span style="color:#94a3b8; font-weight:normal;">(Optional)</span></label>
+                            <input type="text" id="quickMiddleName" placeholder="Middle Name">
+                        </div>
+                        <div class="drawer-field-group">
+                            <label>Last Name <span style="color:#ef4444;">*</span></label>
+                            <input type="text" id="quickLastName" placeholder="Last Name">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Mode 2: Existing Reservation Details (Booked Slot) -->
+                <div id="drawerBookedInfoGroup" style="display:none;">
+                    <div class="drawer-label">Current Status</div>
+                    <div style="margin-bottom:14px;">
+                        <span class="drawer-status-pill booked"><i class="fas fa-lock"></i> Booked / Blocked</span>
+                    </div>
+
+                    <div class="drawer-info-card">
+                        <div class="drawer-info-row"><label>Reservation #</label><span id="drawerResNumber">RES-123</span></div>
+                        <div class="drawer-info-row"><label>Guest Name</label><span id="drawerGuestName">John Doe</span></div>
+                        <div class="drawer-info-row"><label>Total Price</label><span id="drawerTotalPrice">NPR 2,000.00</span></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="drawer-footer">
+                <button type="button" class="drawer-btn-secondary" onclick="closeSideDrawer()">Cancel</button>
+                <button type="button" class="drawer-btn-primary" id="btnDrawerSave" onclick="saveDrawerAction()">Save</button>
+                <button type="button" class="drawer-btn-danger" id="btnDrawerMakeAvailable" style="display:none;" onclick="makeRoomAvailable()">Make Available</button>
+            </div>
+        </div>
+    </div>
+
     <?php include 'includes/high_priority_alert.php'; ?>
     <script>
+        let isMouseDown = false;
+        let selectedRoomId = null;
+        let selectedCells = [];
+        let activeMode = 'vacant'; // 'vacant' or 'booked'
+        let currentBookingData = null;
+
         function filterRooms() {
             const query = document.getElementById('searchRooms').value.trim().toLowerCase();
             const rows = document.querySelectorAll('#roomsTableBody tr.room-row');
@@ -459,7 +840,261 @@ $todayStr = date('Y-m-d');
 
             document.getElementById('listingsCountHeader').textContent = visible + ' rooms';
         }
+
+        function clearSelection() {
+            document.querySelectorAll('.grid-cell.cell-selected').forEach(c => c.classList.remove('cell-selected'));
+            selectedCells = [];
+            selectedRoomId = null;
+        }
+
+        function addDaysDateStr(dateStr, days) {
+            const d = new Date(dateStr + 'T00:00:00');
+            d.setDate(d.getDate() + days);
+            const yyyy = d.getFullYear();
+            const mm = String(d.getMonth() + 1).padStart(2, '0');
+            const dd = String(d.getDate()).padStart(2, '0');
+            return `${yyyy}-${mm}-${dd}`;
+        }
+
+        function formatDateDisplay(dateStr) {
+            if (!dateStr) return '';
+            const d = new Date(dateStr + 'T00:00:00');
+            if (isNaN(d.getTime())) return dateStr;
+            const mm = String(d.getMonth() + 1).padStart(2, '0');
+            const dd = String(d.getDate()).padStart(2, '0');
+            const yyyy = d.getFullYear();
+            return `${mm}/${dd}/${yyyy}`;
+        }
+
+        function toggleDrawerAvailabilityMode() {
+            const radioAvailable = document.getElementById('radioAvailable');
+            const fields = document.getElementById('drawerGuestDetailsFields');
+            if (radioAvailable && radioAvailable.checked) {
+                if (fields) fields.style.display = 'none';
+            } else {
+                if (fields) fields.style.display = 'block';
+            }
+        }
+
+        function openDrawerForVacantSelection(cells) {
+            activeMode = 'vacant';
+            currentBookingData = null;
+            clearSelection();
+
+            cells.forEach(c => c.classList.add('cell-selected'));
+            selectedCells = cells;
+
+            const firstCell = cells[0];
+            const lastCell = cells[cells.length - 1];
+
+            const roomId = firstCell.dataset.roomId;
+            const roomNo = firstCell.dataset.roomNumber;
+            const roomName = firstCell.dataset.roomName;
+            const checkInDate = firstCell.dataset.date;
+            const checkOutDate = addDaysDateStr(lastCell.dataset.date, 1);
+            const totalNights = cells.length;
+
+            document.getElementById('drawerRoomName').textContent = `${roomName} (${roomNo})`;
+            document.getElementById('drawerCheckInDisplay').textContent = formatDateDisplay(checkInDate);
+            document.getElementById('drawerCheckOutDisplay').textContent = formatDateDisplay(checkOutDate);
+            document.getElementById('drawerNightsSub').textContent = `${totalNights} night${totalNights > 1 ? 's' : ''} stay`;
+
+            document.getElementById('drawerVacantFormGroup').style.display = 'block';
+            document.getElementById('drawerBookedInfoGroup').style.display = 'none';
+            document.getElementById('radioBlocked').checked = true;
+            document.getElementById('drawerGuestDetailsFields').style.display = 'block';
+
+            document.getElementById('quickFirstName').value = '';
+            document.getElementById('quickMiddleName').value = '';
+            document.getElementById('quickLastName').value = '';
+
+            document.getElementById('btnDrawerSave').style.display = 'inline-block';
+            document.getElementById('btnDrawerMakeAvailable').style.display = 'none';
+
+            document.getElementById('airbnbDrawerOverlay').style.display = 'flex';
+            document.getElementById('quickFirstName').focus();
+        }
+
+        function openDrawerForBookedCell(cell) {
+            activeMode = 'booked';
+            clearSelection();
+            cell.classList.add('cell-selected');
+
+            currentBookingData = {
+                reservation_id: cell.dataset.reservationId,
+                reservation_number: cell.dataset.reservationNumber,
+                guest_name: cell.dataset.guestName,
+                room_id: cell.dataset.roomId,
+                room_number: cell.dataset.roomNumber,
+                room_name: cell.dataset.roomName,
+                check_in_date: cell.dataset.checkin,
+                check_out_date: cell.dataset.checkout,
+                total_price: cell.dataset.totalPrice,
+                currency: cell.dataset.currency || 'NPR'
+            };
+
+            const roomNo = cell.dataset.roomNumber;
+            const roomName = cell.dataset.roomName;
+            const checkInDate = cell.dataset.checkin;
+            const checkOutDate = cell.dataset.checkout;
+            
+            const startD = new Date(checkInDate + 'T00:00:00');
+            const endD = new Date(checkOutDate + 'T00:00:00');
+            const totalNights = Math.max(1, Math.round((endD - startD) / (1000 * 60 * 60 * 24)));
+
+            document.getElementById('drawerRoomName').textContent = `${roomName} (${roomNo})`;
+            document.getElementById('drawerCheckInDisplay').textContent = formatDateDisplay(checkInDate);
+            document.getElementById('drawerCheckOutDisplay').textContent = formatDateDisplay(checkOutDate);
+            document.getElementById('drawerNightsSub').textContent = `${totalNights} night${totalNights > 1 ? 's' : ''} stay`;
+
+            document.getElementById('drawerVacantFormGroup').style.display = 'none';
+            document.getElementById('drawerBookedInfoGroup').style.display = 'block';
+
+            document.getElementById('drawerResNumber').textContent = currentBookingData.reservation_number || ('#' + currentBookingData.reservation_id);
+            document.getElementById('drawerGuestName').textContent = currentBookingData.guest_name || 'N/A';
+            document.getElementById('drawerTotalPrice').textContent = `${currentBookingData.currency} ${parseFloat(currentBookingData.total_price || 0).toFixed(2)}`;
+
+            document.getElementById('btnDrawerSave').style.display = 'none';
+            document.getElementById('btnDrawerMakeAvailable').style.display = 'inline-block';
+
+            document.getElementById('airbnbDrawerOverlay').style.display = 'flex';
+        }
+
+        function closeSideDrawer() {
+            document.getElementById('airbnbDrawerOverlay').style.display = 'none';
+            clearSelection();
+        }
+
+        function handleOverlayClick(e) {
+            if (e.target.id === 'airbnbDrawerOverlay') {
+                closeSideDrawer();
+            }
+        }
+
+        async function saveDrawerAction() {
+            if (activeMode === 'vacant') {
+                const radioAvailable = document.getElementById('radioAvailable');
+                if (radioAvailable && radioAvailable.checked) {
+                    closeSideDrawer();
+                    return;
+                }
+
+                const fName = document.getElementById('quickFirstName').value.trim();
+                const mName = document.getElementById('quickMiddleName').value.trim();
+                const lName = document.getElementById('quickLastName').value.trim();
+
+                if (!fName) {
+                    alert('Please enter at least First Name to book/block the room.');
+                    document.getElementById('quickFirstName').focus();
+                    return;
+                }
+
+                if (selectedCells.length === 0) return;
+
+                const firstCell = selectedCells[0];
+                const lastCell = selectedCells[selectedCells.length - 1];
+
+                const body = new FormData();
+                body.append('action', 'calendar_quick_book');
+                body.append('room_id', firstCell.dataset.roomId);
+                body.append('check_in_date', firstCell.dataset.date);
+                body.append('check_out_date', addDaysDateStr(lastCell.dataset.date, 1));
+                body.append('first_name', fName);
+                body.append('middle_name', mName);
+                body.append('last_name', lName);
+
+                try {
+                    const res = await fetch('../api.php', { method: 'POST', body });
+                    const data = await res.json();
+
+                    if (!data.success) {
+                        alert(data.message || 'Could not save booking.');
+                        return;
+                    }
+
+                    // Dynamically update cells to booked state
+                    const resId = data.reservation_id;
+                    const resNum = data.reservation_number;
+                    const guestFullName = [fName, mName, lName].filter(Boolean).join(' ');
+
+                    selectedCells.forEach(cell => {
+                        cell.className = 'grid-cell cell-booked';
+                        cell.dataset.reservationId = resId;
+                        cell.dataset.reservationNumber = resNum;
+                        cell.dataset.guestName = guestFullName;
+                        cell.dataset.checkin = firstCell.dataset.date;
+                        cell.dataset.checkout = addDaysDateStr(lastCell.dataset.date, 1);
+                        cell.dataset.tooltip = `${resNum} - ${guestFullName}`;
+                    });
+
+                    closeSideDrawer();
+                } catch(e) {
+                    alert('Failed to save booking. Please try again.');
+                }
+            }
+        }
+
+        async function makeRoomAvailable() {
+            if (!currentBookingData || !currentBookingData.reservation_id) return;
+
+            if (!confirm(`Are you sure you want to make Room ${currentBookingData.room_number} available?\nThis will remove reservation ${currentBookingData.reservation_number}.`)) {
+                return;
+            }
+
+            const body = new FormData();
+            body.append('action', 'calendar_make_available');
+            body.append('reservation_id', currentBookingData.reservation_id);
+
+            try {
+                const res = await fetch('../api.php', { method: 'POST', body });
+                const data = await res.json();
+
+                if (!data.success) {
+                    alert(data.message || 'Could not make room available.');
+                    return;
+                }
+
+                // Dynamically update cells back to available
+                const resId = currentBookingData.reservation_id;
+                document.querySelectorAll(`.grid-cell[data-reservation-id="${resId}"]`).forEach(cell => {
+                    cell.className = 'grid-cell cell-available';
+                    cell.removeAttribute('data-reservation-id');
+                    cell.removeAttribute('data-reservation-number');
+                    cell.removeAttribute('data-guest-name');
+                    cell.removeAttribute('data-first-name');
+                    cell.removeAttribute('data-middle-name');
+                    cell.removeAttribute('data-last-name');
+                    cell.removeAttribute('data-checkin');
+                    cell.removeAttribute('data-checkout');
+                    cell.removeAttribute('data-total-price');
+                    cell.removeAttribute('data-currency');
+                    cell.removeAttribute('data-tooltip');
+                });
+
+                closeSideDrawer();
+            } catch(e) {
+                alert('An error occurred. Please try again.');
+            }
+        }
+
+        // Setup cell click & drag selection
+        document.addEventListener('DOMContentLoaded', () => {
+            const tbody = document.getElementById('roomsTableBody');
+            if (!tbody) return;
+
+            tbody.addEventListener('click', (e) => {
+                const cell = e.target.closest('.grid-cell');
+                if (!cell) return;
+
+                if (cell.classList.contains('cell-booked')) {
+                    openDrawerForBookedCell(cell);
+                } else if (cell.classList.contains('cell-available')) {
+                    openDrawerForVacantSelection([cell]);
+                }
+            });
+        });
     </script>
 </body>
 
 </html>
+

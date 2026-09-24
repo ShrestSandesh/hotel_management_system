@@ -105,9 +105,12 @@
 }
 
 /* ===== ADMIN SIDE PAGES ===== */
+body,
 body.page-login,
 body.page-dashboard,
 body.page-reservation,
+body.page-calendar,
+body.page-current-guests,
 body.page-guest-stays,
 body.page-staff-handover,
 body.page-manage-rooms,

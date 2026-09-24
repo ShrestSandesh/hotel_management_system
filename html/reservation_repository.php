@@ -1064,6 +1064,7 @@ function getReservationsForDateRange($startDate, $endDate)
     $stmt = mysqli_prepare(
         $conn,
         "SELECT r.id, r.room_id, r.check_in_date, r.check_out_date, r.reservation_number, r.check_out_status,
+                r.total_price, r.currency, r.payment_status,
                 g.first_name, g.middle_name, g.last_name
          FROM reservations r
          JOIN guests g ON g.id = r.guest_id

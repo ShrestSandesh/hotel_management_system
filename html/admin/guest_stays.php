@@ -77,11 +77,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     ]
                 ]);
 
+                $isAjax = (!empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest') || isset($_POST['ajax']);
+
                 if (!$result['success']) {
+                    if ($isAjax) {
+                        header('Content-Type: application/json');
+                        echo json_encode(['success' => false, 'message' => $result['message']]);
+                        exit;
+                    }
                     $message = $result['message'];
                     $messageType = 'error';
                 } else {
-                    header('Location: guest_stays.php?updated=' . ($result['success'] ? '1' : '0'));
+                    if ($isAjax) {
+                        header('Content-Type: application/json');
+                        $updatedGuest = getReservationById($reservationId);
+                        if ($updatedGuest) {
+                            $updatedGuest['extra_charges'] = getExtraCharges($reservationId);
+                            $updatedGuest['occupants'] = getReservationOccupants($reservationId);
+                        }
+                        echo json_encode(['success' => true, 'updated_guest' => $updatedGuest]);
+                        exit;
+                    }
+                    header('Location: guest_stays.php?updated=1');
                     exit;
                 }
             }
@@ -1373,6 +1390,57 @@ $bankOptions = ["Sulimha Nabil", "Sulimha HBL", "LHC Nabil", "LHC HBL"];
         <?php if ($messageType === 'error' && ($_POST['action'] ?? '') === 'quick_add'): ?>
             document.addEventListener('DOMContentLoaded', () => openAddGuestModal());
         <?php endif; ?>
+
+        document.getElementById('editGuestForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            const formData = new FormData(this);
+            formData.append('ajax', '1');
+
+            try {
+                const res = await fetch('guest_stays.php', {
+                    method: 'POST',
+                    body: formData,
+                    headers: { 'X-Requested-With': 'XMLHttpRequest' }
+                });
+                const data = await res.json();
+                if (data.success && data.updated_guest) {
+                    closeModal('editModal');
+                    const updated = data.updated_guest;
+                    updated.guest_name = [updated.first_name, updated.middle_name, updated.last_name].filter(Boolean).join(' ');
+                    
+                    const idx = guests.findIndex(g => parseInt(g.reservation_id, 10) === parseInt(updated.reservation_id, 10));
+                    if (idx !== -1) {
+                        guests[idx] = updated;
+                    }
+                    
+                    const tr = document.querySelector(`tr[data-reservation-id="${updated.reservation_id}"]`);
+                    if (tr) {
+                        tr.dataset.firstName = updated.first_name || '';
+                        tr.dataset.middleName = updated.middle_name || '';
+                        tr.dataset.lastName = updated.last_name || '';
+                        tr.dataset.checkin = updated.check_in_date || '';
+                        tr.dataset.checkout = updated.check_out_date || '';
+                        tr.dataset.currency = updated.currency || 'NPR';
+                        tr.dataset.paymentMode = updated.payment_mode || '';
+                        tr.dataset.bank = updated.bank || '';
+                        tr.dataset.totalPrice = updated.total_price || '0';
+
+                        const priceVal = parseFloat(updated.total_price || 0);
+                        if (tr.cells[2]) tr.cells[2].textContent = updated.guest_name;
+                        if (tr.cells[3]) tr.cells[3].textContent = updated.room_number;
+                        if (tr.cells[4]) tr.cells[4].textContent = formatDate(updated.check_in_date);
+                        if (tr.cells[5]) tr.cells[5].textContent = formatDate(updated.check_out_date);
+                        if (tr.cells[6]) tr.cells[6].textContent = updated.currency === 'USD' ? priceVal.toFixed(2) : '—';
+                        if (tr.cells[7]) tr.cells[7].textContent = updated.currency === 'NPR' ? priceVal.toFixed(2) : '—';
+                    }
+                    applyFilters();
+                } else {
+                    alert(data.message || 'Could not update guest record.');
+                }
+            } catch(err) {
+                alert('An error occurred while saving changes.');
+            }
+        });
     </script>
     <form id="saveStatusForm" method="post" style="display:none;"></form>
 
