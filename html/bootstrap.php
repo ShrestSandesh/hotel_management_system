@@ -40,6 +40,12 @@ function ensureDatabaseSchema()
         return;
     }
 
+    // Quick check: if the database schema is already initialized, skip running 20+ DDL queries on every request
+    $schemaCheck = mysqli_query($conn, "SHOW TABLES LIKE 'reservation_occupants'");
+    if ($schemaCheck && mysqli_num_rows($schemaCheck) > 0) {
+        return;
+    }
+
     $queries = [
         "CREATE TABLE IF NOT EXISTS users (
             id INT AUTO_INCREMENT PRIMARY KEY,

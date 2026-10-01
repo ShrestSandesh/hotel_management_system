@@ -144,6 +144,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     if ($res && !empty($res['room_id'])) {
                         updateRoomStatus((int) $res['room_id'], 'Occupied');
                     }
+                } elseif ($checkOutOk && $selectedStatus === 'Checked out') {
+                    $res = getReservationById($reservationId);
+                    if ($res && !empty($res['room_id'])) {
+                        updateRoomStatus((int) $res['room_id'], 'Dirty');
+                    }
                 }
 
                 if (!$checkInOk || !$checkOutOk) {
@@ -173,9 +178,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 if ($res && !empty($res['room_id'])) {
                     updateRoomStatus((int) $res['room_id'], 'Occupied');
                 }
+            } elseif ($checkOutOk && $selectedStatus === 'Checked out') {
+                $res = getReservationById($reservationId);
+                if ($res && !empty($res['room_id'])) {
+                    updateRoomStatus((int) $res['room_id'], 'Dirty');
+                }
             }
             $allOk = $checkInOk && $checkOutOk;
             $updatedAny = true;
+        }
+
+        $isAjax = (!empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest') || isset($_POST['ajax']);
+        if ($isAjax) {
+            header('Content-Type: application/json');
+            echo json_encode(['success' => $updatedAny && $allOk, 'message' => ($updatedAny && $allOk ? 'Guest status updated successfully.' : 'Could not update status.')]);
+            exit;
         }
 
         header('Location: guest_stays.php?statusupdated=' . ($updatedAny && $allOk ? '1' : '0'));
@@ -494,7 +511,7 @@ $bankOptions = ["Sulimha Nabil", "Sulimha HBL", "LHC Nabil", "LHC HBL"];
                                         <td><?= $guest['currency'] === 'NPR' ? h(number_format((float) $roomTotalPrice, 2)) : '—'; ?>
                                         </td>
                                         <td>
-                                            <select name="status" class="status-select" data-reservation-id="<?= h($guest['reservation_id']); ?>" onchange="applyFilters()"
+                                            <select name="status" class="status-select" data-reservation-id="<?= h($guest['reservation_id']); ?>" onchange="updateGuestStatus(this)"
                                                 style="padding:6px 8px; border:1px solid #cbd5e1; border-radius:6px; min-width:120px;">
                                                 <option value="" <?= (($guest['check_in_status'] ?? 'NOT CHECKED IN') === 'NOT CHECKED IN' && (($guest['check_out_status'] ?? 'NOT CHECKED OUT') === 'NOT CHECKED OUT') ? 'selected' : '') ?>></option>
                                                 <option value="Check in" <?= (($guest['check_in_status'] ?? 'NOT CHECKED IN') === 'CHECKED IN' && (($guest['check_out_status'] ?? 'NOT CHECKED OUT') !== 'CHECKED OUT') ? 'selected' : '') ?>>Check in</option>
@@ -1285,6 +1302,24 @@ $bankOptions = ["Sulimha Nabil", "Sulimha HBL", "LHC Nabil", "LHC HBL"];
             }
         }
 
+        function showToast(message, type = 'success') {
+            let toast = document.getElementById('toastNotification');
+            if (!toast) {
+                toast = document.createElement('div');
+                toast.id = 'toastNotification';
+                toast.style.cssText = 'position:fixed; top:20px; right:20px; z-index:9999; padding:12px 20px; border-radius:8px; font-weight:700; color:#fff; box-shadow:0 4px 14px rgba(0,0,0,0.18); transition:opacity 0.3s ease;';
+                document.body.appendChild(toast);
+            }
+            toast.style.background = type === 'success' ? '#16a34a' : '#dc2626';
+            toast.textContent = message;
+            toast.style.display = 'block';
+            toast.style.opacity = '1';
+            setTimeout(() => {
+                toast.style.opacity = '0';
+                setTimeout(() => { toast.style.display = 'none'; }, 300);
+            }, 2500);
+        }
+
         function applyFilters() {
             const nameQuery = document.getElementById('filterName').value.trim().toLowerCase();
             const roomQuery = document.getElementById('filterRoom').value;
@@ -1300,7 +1335,12 @@ $bankOptions = ["Sulimha Nabil", "Sulimha HBL", "LHC Nabil", "LHC HBL"];
             const rows = document.querySelectorAll('#guestsTableBody tr[data-reservation-id]');
 
             rows.forEach(row => {
-                const fullName = `${row.dataset.firstName || ''} ${row.dataset.middleName || ''} ${row.dataset.lastName || ''}`.toLowerCase();
+                const firstName = (row.dataset.firstName || '').trim();
+                const middleName = (row.dataset.middleName || '').trim();
+                const lastName = (row.dataset.lastName || '').trim();
+                const nameParts = [firstName, middleName, lastName].filter(Boolean);
+                const fullName = nameParts.join(' ').toLowerCase();
+
                 const roomNumber = row.dataset.roomNumber || '';
                 const bankName = row.dataset.bank || '';
                 const checkin = row.dataset.checkin || '';
@@ -1308,7 +1348,11 @@ $bankOptions = ["Sulimha Nabil", "Sulimha HBL", "LHC Nabil", "LHC HBL"];
                 const currentStatus = statusSelect ? statusSelect.value : '';
 
                 let visible = true;
-                if (nameQuery && !fullName.includes(nameQuery)) visible = false;
+                if (nameQuery) {
+                    const queryTokens = nameQuery.split(/\s+/).filter(Boolean);
+                    const nameMatches = queryTokens.every(token => fullName.includes(token));
+                    if (!nameMatches) visible = false;
+                }
                 if (!matchesMultiCriteria(roomNumber, roomQuery)) visible = false;
                 if (!matchesMultiCriteria(bankName, bankQuery)) visible = false;
                 if (statusFilter && currentStatus !== statusFilter) visible = false;
@@ -1360,24 +1404,79 @@ $bankOptions = ["Sulimha Nabil", "Sulimha HBL", "LHC Nabil", "LHC HBL"];
             applyFilters();
         }
 
-        function saveStatusChanges() {
-            const form = document.getElementById('saveStatusForm');
-            form.innerHTML = '<input type="hidden" name="action" value="save_statuses">';
+        async function updateGuestStatus(selectElem) {
+            if (!selectElem) return;
+            const reservationId = selectElem.dataset.reservationId;
+            const statusVal = selectElem.value;
+            if (!reservationId) return;
+
+            const formData = new FormData();
+            formData.append('action', 'update_status');
+            formData.append('reservation_id', reservationId);
+            formData.append('status', statusVal);
+            formData.append('ajax', '1');
+
+            try {
+                const res = await fetch('guest_stays.php', {
+                    method: 'POST',
+                    body: formData,
+                    headers: { 'X-Requested-With': 'XMLHttpRequest' }
+                });
+                const data = await res.json();
+                if (data.success) {
+                    const guest = findGuest(reservationId);
+                    if (guest) {
+                        if (statusVal === 'Checked out') {
+                            guest.check_in_status = 'CHECKED IN';
+                            guest.check_out_status = 'CHECKED OUT';
+                        } else if (statusVal === 'Check in') {
+                            guest.check_in_status = 'CHECKED IN';
+                            guest.check_out_status = 'NOT CHECKED OUT';
+                        } else {
+                            guest.check_in_status = 'NOT CHECKED IN';
+                            guest.check_out_status = 'NOT CHECKED OUT';
+                        }
+                    }
+                    applyFilters();
+                    showToast('Guest status updated successfully.');
+                } else {
+                    showToast(data.message || 'Could not update status.', 'error');
+                }
+            } catch (err) {
+                showToast('An error occurred while saving status.', 'error');
+            }
+        }
+
+        async function saveStatusChanges() {
+            const formData = new FormData();
+            formData.append('action', 'save_statuses');
+            formData.append('ajax', '1');
 
             const selectElems = document.querySelectorAll('.status-select');
             selectElems.forEach(select => {
                 const resId = select.dataset.reservationId;
                 const val = select.value;
                 if (resId) {
-                    const input = document.createElement('input');
-                    input.type = 'hidden';
-                    input.name = `statuses[${resId}]`;
-                    input.value = val;
-                    form.appendChild(input);
+                    formData.append(`statuses[${resId}]`, val);
                 }
             });
 
-            form.submit();
+            try {
+                const res = await fetch('guest_stays.php', {
+                    method: 'POST',
+                    body: formData,
+                    headers: { 'X-Requested-With': 'XMLHttpRequest' }
+                });
+                const data = await res.json();
+                if (data.success) {
+                    applyFilters();
+                    showToast('All status changes saved successfully.');
+                } else {
+                    showToast(data.message || 'Could not save statuses.', 'error');
+                }
+            } catch (err) {
+                showToast('An error occurred while saving statuses.', 'error');
+            }
         }
 
         document.getElementById('filterName').addEventListener('input', applyFilters);
@@ -1418,6 +1517,7 @@ $bankOptions = ["Sulimha Nabil", "Sulimha HBL", "LHC Nabil", "LHC HBL"];
                         tr.dataset.firstName = updated.first_name || '';
                         tr.dataset.middleName = updated.middle_name || '';
                         tr.dataset.lastName = updated.last_name || '';
+                        tr.dataset.roomNumber = updated.room_number || '';
                         tr.dataset.checkin = updated.check_in_date || '';
                         tr.dataset.checkout = updated.check_out_date || '';
                         tr.dataset.currency = updated.currency || 'NPR';
@@ -1434,6 +1534,7 @@ $bankOptions = ["Sulimha Nabil", "Sulimha HBL", "LHC Nabil", "LHC HBL"];
                         if (tr.cells[7]) tr.cells[7].textContent = updated.currency === 'NPR' ? priceVal.toFixed(2) : '—';
                     }
                     applyFilters();
+                    showToast('Guest record updated successfully.');
                 } else {
                     alert(data.message || 'Could not update guest record.');
                 }

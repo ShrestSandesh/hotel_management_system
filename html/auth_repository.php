@@ -75,6 +75,7 @@ function requireAdminLogin()
         header('Location: login.php');
         exit;
     }
+    session_write_close();
 }
 
 function getAdminName()

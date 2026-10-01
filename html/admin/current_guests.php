@@ -145,6 +145,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
 
+        $isAjax = (!empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest') || isset($_POST['ajax']);
+        if ($isAjax) {
+            header('Content-Type: application/json');
+            echo json_encode(['success' => $ok, 'message' => ($ok ? 'Guest status updated successfully.' : 'Could not update guest status.')]);
+            exit;
+        }
+
         header('Location: current_guests.php?statusupdated=' . ($ok ? '1' : '0'));
         exit;
     }
@@ -266,7 +273,46 @@ foreach ($guests as $g) {
                 </div>
             </div>
 
-            <div class="table-card">
+                        <div class="table-card">
+                <div class="filter-card" style="display:flex; flex-wrap:wrap; align-items:end; gap:16px; margin-bottom:18px;">
+                    <div class="input-group" style="flex:1; min-width:170px; margin-bottom:0;">
+                        <label>Search by Name</label>
+                        <input type="text" id="filterName" placeholder="e.g. Sita Rai">
+                    </div>
+                    <div class="input-group" style="flex:1; min-width:170px; margin-bottom:0;">
+                        <label>Room Number</label>
+                        <input type="text" id="filterRoom" placeholder="e.g. 103, 104">
+                    </div>
+                    <div class="input-group" style="flex:1; min-width:170px; margin-bottom:0;">
+                        <label>Bank</label>
+                        <select id="filterBank">
+                            <option value="">All Banks</option>
+                            <?php foreach ($bankOptions as $opt): ?>
+                                <option value="<?= h($opt); ?>"><?= h($opt); ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                    <div class="input-group" style="flex:1; min-width:170px; margin-bottom:0;">
+                        <label>Status</label>
+                        <select id="filterStatus">
+                            <option value="">All Statuses</option>
+                            <option value="Check in">Check in</option>
+                            <option value="Checked out">Checked out</option>
+                        </select>
+                    </div>
+                    <div class="input-group" style="flex:1; min-width:170px; margin-bottom:0;">
+                        <label>Check-In From</label>
+                        <input type="date" id="filterFrom">
+                    </div>
+                    <div class="input-group" style="flex:1; min-width:170px; margin-bottom:0;">
+                        <label>Check-In To</label>
+                        <input type="date" id="filterTo">
+                    </div>
+                    <div class="filter-actions" style="display:flex; gap:10px; flex:0 0 auto;">
+                        <button class="btn" type="button" onclick="applyFilters()"><i class="fas fa-filter"></i> Apply Filter</button>
+                        <button class="btn-cancel" type="button" onclick="resetFilters()">Reset</button>
+                    </div>
+                </div>
                 <div class="table-wrapper">
                     <table>
                         <thead>
@@ -296,6 +342,7 @@ foreach ($guests as $g) {
                                         data-first-name="<?= h($guest['first_name']); ?>"
                                         data-middle-name="<?= h($guest['middle_name']); ?>"
                                         data-last-name="<?= h($guest['last_name']); ?>"
+                                        data-room-number="<?= h($guest['room_number']); ?>"
                                         data-checkin="<?= h($guest['check_in_date']); ?>"
                                         data-checkout="<?= h($guest['check_out_date']); ?>"
                                         data-currency="<?= h($guest['currency']); ?>"
@@ -313,17 +360,12 @@ foreach ($guests as $g) {
                                         <td><?= $guest['currency'] === 'NPR' ? h(number_format((float) $roomTotalPrice, 2)) : '—'; ?>
                                         </td>
                                         <td>
-                                            <form method="post" style="display:inline;">
-                                                <input type="hidden" name="action" value="update_status">
-                                                <input type="hidden" name="reservation_id"
-                                                    value="<?= h($guest['reservation_id']); ?>">
-                                                <select name="status" onchange="this.form.submit()"
-                                                    style="padding:6px 8px; border:1px solid #cbd5e1; border-radius:6px; min-width:120px;">
-                                                    <option value="" <?= (($guest['check_in_status'] ?? 'NOT CHECKED IN') === 'NOT CHECKED IN' && (($guest['check_out_status'] ?? 'NOT CHECKED OUT') === 'NOT CHECKED OUT') ? 'selected' : '') ?>></option>
-                                                    <option value="Check in" <?= (($guest['check_in_status'] ?? 'NOT CHECKED IN') === 'CHECKED IN' && (($guest['check_out_status'] ?? 'NOT CHECKED OUT') !== 'CHECKED OUT') ? 'selected' : '') ?>>Check in</option>
-                                                    <option value="Checked out" <?= (($guest['check_out_status'] ?? 'NOT CHECKED OUT') === 'CHECKED OUT' ? 'selected' : '') ?>>Checked out</option>
-                                                </select>
-                                            </form>
+                                            <select name="status" class="status-select" data-reservation-id="<?= h($guest['reservation_id']); ?>" onchange="updateGuestStatus(this)"
+                                                style="padding:6px 8px; border:1px solid #cbd5e1; border-radius:6px; min-width:120px;">
+                                                <option value="" <?= (($guest['check_in_status'] ?? 'NOT CHECKED IN') === 'NOT CHECKED IN' && (($guest['check_out_status'] ?? 'NOT CHECKED OUT') === 'NOT CHECKED OUT') ? 'selected' : '') ?>></option>
+                                                <option value="Check in" <?= (($guest['check_in_status'] ?? 'NOT CHECKED IN') === 'CHECKED IN' && (($guest['check_out_status'] ?? 'NOT CHECKED OUT') !== 'CHECKED OUT') ? 'selected' : '') ?>>Check in</option>
+                                                <option value="Checked out" <?= (($guest['check_out_status'] ?? 'NOT CHECKED OUT') === 'CHECKED OUT' ? 'selected' : '') ?>>Checked out</option>
+                                            </select>
                                         </td>
                                         <td class="action-buttons">
                                             <button class="action-view" type="button" title="View" onclick="viewGuest(this)"><i
@@ -972,6 +1014,8 @@ foreach ($guests as $g) {
                         tr.cells[5].textContent = updated.currency === 'USD' ? priceVal.toFixed(2) : '—';
                         tr.cells[6].textContent = updated.currency === 'NPR' ? priceVal.toFixed(2) : '—';
                     }
+                    applyFilters();
+                    showToast('Guest record updated successfully.');
                 } else {
                     alert(data.message || 'Could not update guest record.');
                 }
